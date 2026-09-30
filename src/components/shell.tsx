@@ -1,4 +1,6 @@
 import { fmtDateTime } from "@/lib/format";
+import { InstallButton } from "./install-button";
+import { OfflineNotice } from "./offline-notice";
 import { ThemeToggle } from "./theme-toggle";
 
 /** Page chrome: header with the reading time, and the data-source footer. */
@@ -25,9 +27,11 @@ export function Shell({
               {refreshFailed && <span className="block">Last refresh failed — showing stored data</span>}
             </p>
           )}
+          <InstallButton />
           <ThemeToggle />
         </div>
       </header>
+      <OfflineNotice />
       {children}
       <footer className="mt-10 text-xs text-muted">
         Data: National Environment Agency via{" "}

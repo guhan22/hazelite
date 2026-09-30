@@ -1,0 +1,84 @@
+// Hazelite service worker: lets the installed app open offline with the last reading it saw.
+// Bump VERSION to drop old caches after changing caching behaviour.
+const VERSION = "v1";
+const PAGES = `pages-${VERSION}`;
+const ASSETS = `assets-${VERSION}`;
+const MAX_ASSETS = 150;
+
+self.addEventListener("install", () => self.skipWaiting());
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== PAGES && k !== ASSETS).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  // Live data and other origins always go to the network.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+
+  if (req.mode === "navigate") {
+    event.respondWith(networkFirst(req));
+  } else if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
+    event.respondWith(cacheFirst(req)); // content-hashed or versioned: safe to reuse
+  } else if (url.pathname.startsWith("/_next/image")) {
+    event.respondWith(staleWhileRevalidate(req));
+  }
+});
+
+/** Pages: always try for fresh data; offline, show this page's last copy, else the newest saved one. */
+async function networkFirst(req) {
+  const cache = await caches.open(PAGES);
+  try {
+    const res = await fetch(req);
+    if (res.ok) await cache.put(req, res.clone());
+    return res;
+  } catch {
+    const keys = await cache.keys();
+    return (await cache.match(req)) || (keys.length && (await cache.match(keys[keys.length - 1]))) || offlinePage();
+  }
+}
+
+async function cacheFirst(req) {
+  const cache = await caches.open(ASSETS);
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  const res = await fetch(req);
+  if (res.ok) {
+    await cache.put(req, res.clone());
+    await trim(cache);
+  }
+  return res;
+}
+
+async function staleWhileRevalidate(req) {
+  const cache = await caches.open(ASSETS);
+  const hit = await cache.match(req);
+  const fresh = fetch(req)
+    .then(async (res) => {
+      if (res.ok) await cache.put(req, res.clone());
+      return res;
+    })
+    .catch(() => hit);
+  return hit || fresh;
+}
+
+/** Old build assets pile up across deploys; keep only the most recent entries. */
+async function trim(cache) {
+  const keys = await cache.keys();
+  await Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_ASSETS)).map((k) => cache.delete(k)));
+}
+
+function offlinePage() {
+  const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hazelite — offline</title>
+<body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem;text-align:center">
+<div><h1 style="font-size:1.25rem">You're offline</h1><p>Hazelite needs a connection the first time. Try again when you're back online.</p></div>`;
+  return new Response(html, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } });
+}

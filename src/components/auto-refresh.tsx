@@ -8,7 +8,8 @@ export function AutoRefresh({ seconds = 300 }: { seconds?: number }) {
   const router = useRouter();
   useEffect(() => {
     const id = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
+      // Offline, a refresh would fail; the service worker's saved page stays on screen instead.
+      if (document.visibilityState === "visible" && navigator.onLine) router.refresh();
     }, seconds * 1000);
     return () => clearInterval(id);
   }, [router, seconds]);
