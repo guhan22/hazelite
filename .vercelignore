@@ -1,0 +1,7 @@
+# Never upload local secrets or tooling when deploying with the Vercel CLI
+# (Git-triggered deploys only see committed files anyway).
+.env*
+!.env.example
+deploy/
+.claude/
+.semantic-search/
