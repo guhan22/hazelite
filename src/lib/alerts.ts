@@ -2,7 +2,7 @@ import { bandFor, pm25GuideFor, PM25_BANDS, type Severity } from "./bands";
 import { pool } from "./db";
 import { titleCase } from "./format";
 import { logError } from "./http";
-import { pushConfigured, send, type Notice, type Subscription } from "./push";
+import { pushConfigured, send, settleInBatches, type Notice, type Subscription } from "./push";
 import { getLatest } from "./queries";
 
 const rank = (s: Severity) => PM25_BANDS.findIndex((b) => b.severity === s);
@@ -42,7 +42,9 @@ export function confirmation(sub: Subscription): Notice {
   const level = PM25_BANDS.find((b) => b.severity === sub.level)!;
   return {
     title: `Haze alerts on · ${titleCase(sub.region)}`,
-    body: `We'll tell you when 1-hr PM2.5 reaches ${level.label} (${level.min}+ µg/m³), and when it clears.`,
+    body:
+      `We'll tell you when 1-hr PM2.5 reaches ${level.label} (${level.min}+ µg/m³), and when it clears.` +
+      (sub.updates ? " We'll also let you know when Hazelite is updated." : ""),
     tag: "hazelite-confirm",
   };
 }
@@ -61,8 +63,9 @@ export async function sendAlerts(): Promise<void> {
        FROM push_subscriptions`,
       [COOLDOWN_HOURS],
     );
-    const results = await Promise.allSettled(
-      rows.map(async (sub) => {
+    const results = await settleInBatches(
+      rows,
+      async (sub) => {
         const value = pm25.get(sub.region);
         const band = bandFor(PM25_BANDS, value);
         const action = band && decide(sub, band.severity);
@@ -74,10 +77,27 @@ export async function sendAlerts(): Promise<void> {
           [sub.endpoint, sub.lastSeverity, band.severity],
         );
         if (rowCount && action !== "track") await send(sub, notice(action, sub, value!));
-      }),
+      },
     );
     results.forEach((r) => r.status === "rejected" && logError("alert", r.reason));
   } catch (err) {
     logError("alerts", err);
   }
+}
+
+/**
+ * Tells update subscribers that a new version is live. Each version is announced once, however
+ * often the deployment event is delivered. Returns how many notifications were sent.
+ */
+export async function announceRelease(version: string, summary: string): Promise<number> {
+  if (!pushConfigured()) return 0;
+  const { rowCount } = await pool.query("INSERT INTO releases (version) VALUES ($1) ON CONFLICT DO NOTHING", [version]);
+  if (!rowCount) return 0;
+  const { rows } = await pool.query<Pick<Subscription, "endpoint" | "p256dh" | "auth">>(
+    "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE updates",
+  );
+  const update: Notice = { title: "Hazelite has been updated", body: summary || "A new version is live. Open the app to get it.", tag: "hazelite-update" };
+  const results = await settleInBatches(rows, (sub) => send(sub, update));
+  results.forEach((r) => r.status === "rejected" && logError("update notice", r.reason));
+  return results.filter((r) => r.status === "fulfilled" && r.value === true).length;
 }

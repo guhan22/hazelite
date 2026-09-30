@@ -1,0 +1,28 @@
+# Tells update subscribers that a new version is live. Vercel reports each deployment to GitHub, so
+# this runs once a production deployment has succeeded (not when the push happens).
+name: Announce release
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    if: github.event.deployment.environment == 'Production' && github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify update subscribers
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          SHA: ${{ github.event.deployment.sha }}
+          GH_TOKEN: ${{ github.token }}
+        # The commit message goes through jq as data, never into the script itself.
+        run: |
+          summary=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq '.commit.message' | head -n1)
+          jq -n --arg version "$SHA" --arg summary "$summary" '{version: $version, summary: $summary}' |
+            curl --fail-with-body --silent --show-error --max-time 120 -X POST \
+              -H "Authorization: Bearer $INGEST_TOKEN" -H "content-type: application/json" \
+              --data @- https://hazelite.vercel.app/api/release

@@ -44,7 +44,8 @@ export function Tabs({ tabs, initial }: { tabs: Tab[]; initial: string }) {
       <div
         role="tablist"
         aria-label="Sections"
-        className="fixed inset-x-0 bottom-0 z-30 flex justify-center gap-1 border-t border-border bg-page px-2 pb-[env(safe-area-inset-bottom)]"
+        // Sits above the home indicator / gesture bar: never less than 0.75rem from the bottom edge.
+        className="safe-gutters fixed inset-x-0 bottom-0 z-30 flex justify-center gap-1 border-t border-border bg-page pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       >
         {tabs.map((t, i) => (
           <button
@@ -60,7 +61,7 @@ export function Tabs({ tabs, initial }: { tabs: Tab[]; initial: string }) {
             tabIndex={t.id === active ? 0 : -1}
             onClick={() => select(i)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className={`-mt-px inline-flex min-w-18 items-center justify-center gap-1.5 border-t-2 px-3 py-3.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ink)] ${
+            className={`-mt-px inline-flex min-h-12 min-w-18 items-center justify-center gap-1.5 border-t-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ink)] ${
               t.id === active ? "border-ink text-ink" : "border-transparent text-ink-2 hover:text-ink"
             }`}
           >

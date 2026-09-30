@@ -45,6 +45,7 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
   const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
   const [level, setLevel] = useStoredChoice<Severity>("hazelite:alert-level", LEVELS.map((b) => b.severity), "unhealthy");
   const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", ["general", "vulnerable"], "general");
+  const [updates, setUpdates] = useStoredChoice("hazelite:update-alerts", ["on", "off"], "off");
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -78,7 +79,7 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
     const { reg, sub } = await currentSubscription();
     if (!reg) return "Alerts need the app's service worker, which isn't running. Reload the page and try again.";
     const subscription = sub ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(vapidKey) }));
-    await callApi("POST", { subscription: subscription.toJSON(), region, level, profile });
+    await callApi("POST", { subscription: subscription.toJSON(), region, level, profile, updates: updates === "on" });
     setSubscribed(true);
     return `Alerts are on for ${titleCase(region)}. You should see a confirmation now.`;
   });
@@ -169,6 +170,15 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
                   ))}
                 </div>
               </div>
+              <label className="flex items-center gap-2 text-ink-2">
+                <input
+                  type="checkbox"
+                  checked={updates === "on"}
+                  onChange={(e) => setUpdates(e.target.checked ? "on" : "off")}
+                  className="size-4 accent-[var(--ink)]"
+                />
+                Also tell me when Hazelite is updated
+              </label>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">

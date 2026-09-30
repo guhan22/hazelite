@@ -77,6 +77,16 @@ body {
   80% { transform: rotate(2deg); }
 }
 
+/* Side gutters that also clear the notch in landscape (the viewport is edge to edge: viewport-fit=cover). */
+.safe-gutters {
+  --gutter: 1rem;
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+}
+@media (min-width: 40rem) {
+  .safe-gutters { --gutter: 1.5rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

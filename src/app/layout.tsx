@@ -12,6 +12,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Draw edge to edge so env(safe-area-inset-*) reports the notch and home indicator; the page pads for them.
+  viewportFit: "cover",
   // Browser/app chrome matches the page background in each colour scheme.
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f9f9f7" },

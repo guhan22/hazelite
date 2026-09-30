@@ -15,8 +15,8 @@ export function Shell({
   refreshFailed?: boolean;
 }) {
   return (
-    // Bottom padding keeps the footer clear of the fixed tab bar.
-    <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 sm:pt-8">
+    // Top padding clears the status bar; bottom padding keeps the footer clear of the fixed tab bar.
+    <main className="safe-gutters mx-auto w-full max-w-6xl pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
       <header className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">Hazelite</h1>

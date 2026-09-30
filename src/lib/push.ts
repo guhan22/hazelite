@@ -22,6 +22,8 @@ export interface Subscription {
   region: Region;
   level: Severity;
   profile: Profile;
+  /** Also notify when a new version of the app goes live. */
+  updates: boolean;
 }
 
 const pick = <T extends string>(v: unknown, allowed: readonly T[]) => (allowed.includes(v as T) ? (v as T) : null);
@@ -41,14 +43,21 @@ const validKey = (v: unknown, min: number, max: number) =>
 
 /** Validates a browser's PushSubscription JSON plus the alert choices. Null if anything is off. */
 export function parseSubscription(body: unknown): Subscription | null {
-  const b = body as { subscription?: { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } }; region?: unknown; level?: unknown; profile?: unknown } | null;
+  const b = body as {
+    subscription?: { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
+    region?: unknown;
+    level?: unknown;
+    profile?: unknown;
+    updates?: unknown;
+  } | null;
   const endpoint = validEndpoint(b?.subscription?.endpoint);
   const p256dh = validKey(b?.subscription?.keys?.p256dh, 80, 100); // 65-byte P-256 public key
   const auth = validKey(b?.subscription?.keys?.auth, 16, 32); // 16-byte secret
   const region = pick(b?.region, REGIONS);
   const level = pick(b?.level, ALERT_LEVELS);
   const profile = pick(b?.profile, PROFILES);
-  return endpoint && p256dh && auth && region && level && profile ? { endpoint, p256dh, auth, region, level, profile } : null;
+  const updates = b?.updates === true;
+  return endpoint && p256dh && auth && region && level && profile ? { endpoint, p256dh, auth, region, level, profile, updates } : null;
 }
 
 export const parseEndpoint = (body: unknown) => validEndpoint((body as { endpoint?: unknown } | null)?.endpoint);
@@ -61,12 +70,12 @@ export const pushConfigured = () => !!(process.env.VAPID_PUBLIC_KEY && process.e
  */
 export async function saveSubscription(s: Subscription): Promise<boolean> {
   const { rowCount } = await pool.query(
-    `INSERT INTO push_subscriptions (endpoint, p256dh, auth, region, level, profile)
-     SELECT $1, $2, $3, $4, $5, $6
-     WHERE (SELECT count(*) FROM push_subscriptions) < $7 OR EXISTS (SELECT 1 FROM push_subscriptions WHERE endpoint = $1)
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth, region, level, profile, updates)
+     SELECT $1, $2, $3, $4, $5, $6, $7
+     WHERE (SELECT count(*) FROM push_subscriptions) < $8 OR EXISTS (SELECT 1 FROM push_subscriptions WHERE endpoint = $1)
      ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, region = EXCLUDED.region,
-       level = EXCLUDED.level, profile = EXCLUDED.profile, last_severity = 'good', notified_at = NULL`,
-    [s.endpoint, s.p256dh, s.auth, s.region, s.level, s.profile, MAX_SUBSCRIPTIONS],
+       level = EXCLUDED.level, profile = EXCLUDED.profile, updates = EXCLUDED.updates, last_severity = 'good', notified_at = NULL`,
+    [s.endpoint, s.p256dh, s.auth, s.region, s.level, s.profile, s.updates, MAX_SUBSCRIPTIONS],
   );
   return rowCount === 1;
 }
@@ -107,4 +116,11 @@ export async function send(s: Pick<Subscription, "endpoint" | "p256dh" | "auth">
     const status = err instanceof webpush.WebPushError ? err.statusCode : "network";
     throw new Error(`push to ${new URL(s.endpoint).host} failed (${status})`);
   }
+}
+
+/** Runs `task` for every item, a batch at a time so a large subscriber list doesn't open thousands of requests at once. */
+export async function settleInBatches<T>(items: T[], task: (item: T) => Promise<unknown>, size = 50) {
+  const results: PromiseSettledResult<unknown>[] = [];
+  for (let i = 0; i < items.length; i += size) results.push(...(await Promise.allSettled(items.slice(i, i + size).map(task))));
+  return results;
 }
