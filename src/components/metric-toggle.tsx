@@ -6,7 +6,7 @@ import { pill } from "./styles";
 
 const MetricContext = createContext<readonly [MetricId, (id: MetricId) => void]>(["pm25", () => {}]);
 
-/** Shares the Now / 24-hr PSI choice across the page. Starts on 1-hr PM2.5, NEA's "right now" measure. */
+/** Shares the 1-hr PM2.5 / 24-hr PSI choice across the page. Starts on 1-hr PM2.5, NEA's "right now" measure. */
 export function MetricProvider({ children }: { children: ReactNode }) {
   const state = useState<MetricId>("pm25");
   return <MetricContext value={state}>{children}</MetricContext>;
@@ -26,7 +26,7 @@ export function MetricToggle() {
           onClick={() => setMetricId(m.id)}
           className={pill(m.id === metricId)}
         >
-          {m.id === "pm25" ? `${m.label} · ${m.name}` : m.label}
+          {m.name}
         </button>
       ))}
     </div>

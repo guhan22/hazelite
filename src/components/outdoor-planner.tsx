@@ -23,7 +23,9 @@ const inSingapore = (lat: number, lon: number) => lat > 1.15 && lat < 1.48 && lo
 export function OutdoorPlanner({
   readings,
   tomorrow,
+  className,
 }: {
+  className?: string;
   readings: Pick<LatestReading, "region" | "pm25_1h">[];
   /** The model's highest PM2.5 for tomorrow's daytime, islandwide. */
   tomorrow: number | null;
@@ -51,7 +53,7 @@ export function OutdoorPlanner({
   const tomorrowBand = bandFor(PM25_BANDS, tomorrow);
 
   return (
-    <Card title="Can I go out?" subtitle="NEA's guide for the next hour, based on the latest 1-hr PM2.5 reading" className="mt-6">
+    <Card title="Can I go out?" subtitle="NEA's guide for the next hour, based on the latest 1-hr PM2.5 reading" className={className}>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
         <div className="flex gap-1.5" role="group" aria-label="Health profile">
           {PROFILES.map((p) => (

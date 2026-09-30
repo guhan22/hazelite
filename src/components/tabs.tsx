@@ -11,18 +11,21 @@ export interface Tab {
 }
 
 /**
- * The dashboard's sections as tabs, in a bar fixed to the bottom of the screen (thumb reach on phones).
+ * The dashboard's sections as tabs, in a centred bar that sticks to the top while scrolling.
  * Every panel is rendered up front and switching is instant; the active tab is mirrored into `?tab=`
  * (the first tab is the default and leaves no param) so it can be shared and survives reloads.
- * Follows the WAI-ARIA tabs pattern, with arrow-key navigation; the tab list stays first in the DOM.
+ * Follows the WAI-ARIA tabs pattern, with arrow-key navigation.
  */
 export function Tabs({ tabs, initial }: { tabs: Tab[]; initial: string }) {
   const [active, setActive] = useState(initial);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const bar = useRef<HTMLDivElement>(null);
 
   const select = (i: number) => {
     const { id } = tabs[i];
-    if (id !== active) window.scrollTo({ top: 0 });
+    // Scrolled down into a long panel? Start the new one at its top, with the bar still pinned.
+    const barTop = bar.current ? bar.current.offsetTop : 0;
+    if (id !== active && window.scrollY > barTop) window.scrollTo({ top: barTop });
     setActive(id);
     buttons.current[i]?.focus();
     const url = new URL(location.href);
@@ -42,10 +45,11 @@ export function Tabs({ tabs, initial }: { tabs: Tab[]; initial: string }) {
   return (
     <>
       <div
+        ref={bar}
         role="tablist"
         aria-label="Sections"
-        // Sits above the home indicator / gesture bar: never less than 0.75rem from the bottom edge.
-        className="safe-gutters fixed inset-x-0 bottom-0 z-30 flex justify-center gap-1 border-t border-border bg-page pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        // Clears the status bar when the installed app draws under it (viewport-fit=cover).
+        className="sticky top-0 z-30 mb-6 flex justify-center gap-1 border-b border-border bg-page pt-[env(safe-area-inset-top)]"
       >
         {tabs.map((t, i) => (
           <button
@@ -61,7 +65,7 @@ export function Tabs({ tabs, initial }: { tabs: Tab[]; initial: string }) {
             tabIndex={t.id === active ? 0 : -1}
             onClick={() => select(i)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className={`-mt-px inline-flex min-h-12 min-w-18 items-center justify-center gap-1.5 border-t-2 px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ink)] ${
+            className={`-mb-px inline-flex min-h-11 min-w-18 items-center justify-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ink)] ${
               t.id === active ? "border-ink text-ink" : "border-transparent text-ink-2 hover:text-ink"
             }`}
           >

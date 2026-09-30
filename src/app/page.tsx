@@ -1,6 +1,6 @@
-import { Fragment } from "react";
 import { after } from "next/server";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { Card } from "@/components/card";
 import { FiresCard } from "@/components/fires-card";
 import { HistoryCard } from "@/components/history-card";
 import { MetricProvider } from "@/components/metric-toggle";
@@ -78,47 +78,53 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       id: "now",
       label: "Now",
       content: (
-        <Fragment key="now">
-          {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
-          <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
-            <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
-
-            <div className="flex flex-col gap-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
-                <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
-              </div>
-
-              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Stat label="Highest region" value={titleCase(worst.region)}>
-                  PSI {worst.psi24h ?? "–"}
-                </Stat>
-                <Stat label="Change vs 24 hrs ago" value={delta == null ? "–" : `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}`}>
-                  <span style={{ color: !delta ? "var(--muted)" : delta > 0 ? "var(--delta-bad)" : "var(--delta-good)" }}>
-                    {delta == null ? "No data" : delta > 0 ? "▲ Worsening" : delta < 0 ? "▼ Improving" : "Unchanged"}
-                  </span>
-                </Stat>
-              </dl>
-
-              {psiBand && (
-                <div>
-                  <h3 className="mb-2 text-sm font-medium text-ink-2">
-                    Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
-                  </h3>
-                  <ul className="grid gap-2 sm:grid-cols-3">
-                    {advisoryFor(psiBand.severity).map((a) => (
-                      <li key={a.group} className="rounded-lg border border-border px-3 py-2">
-                        <div className="text-xs text-muted">{a.group}</div>
-                        <div className="text-sm">{a.advice}</div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+        // Phones read top to bottom: the figures, then the map, then the guide. On wide screens the
+        // map takes the left column and the other two stack beside it.
+        <div key="now" className="grid gap-6 lg:grid-cols-[minmax(0,25rem)_1fr] lg:grid-rows-[auto_1fr]">
+          <section aria-label="Air quality now" className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-5 sm:p-6 lg:col-start-2 lg:row-start-1">
+            <div className="grid grid-cols-2 gap-5">
+              <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
+              <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
             </div>
+
+            <dl className="grid grid-cols-2 gap-3">
+              <Stat label="Highest 24-hr PSI" value={titleCase(worst.region)}>
+                PSI {worst.psi24h ?? "–"}
+              </Stat>
+              <Stat label="24-hr PSI vs a day ago" value={delta == null ? "–" : `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}`}>
+                <span style={{ color: !delta ? "var(--muted)" : delta > 0 ? "var(--delta-bad)" : "var(--delta-good)" }}>
+                  {delta == null ? "No data" : delta > 0 ? "▲ Worsening" : delta < 0 ? "▼ Improving" : "Unchanged"}
+                </span>
+              </Stat>
+            </dl>
+
+            {psiBand && (
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-ink-2">
+                  Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
+                </h3>
+                <ul className="grid gap-2 sm:grid-cols-3">
+                  {advisoryFor(psiBand.severity).map((a) => (
+                    <li key={a.group} className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-xs text-muted">{a.group}</div>
+                      <div className="text-sm">{a.advice}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
-          <OutdoorPlanner readings={latest} tomorrow={tomorrowPm25} />
-        </Fragment>
+
+          {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
+          <section
+            aria-label="Regions"
+            className="relative overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:col-start-1 lg:row-span-2 lg:row-start-1"
+          >
+            <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
+          </section>
+
+          <OutdoorPlanner readings={latest} tomorrow={tomorrowPm25} className="lg:col-start-2 lg:row-start-2" />
+        </div>
       ),
     },
     {
@@ -128,6 +134,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <div key="forecast" className="grid items-start gap-6 lg:grid-cols-2">
           <OutlookCard nea={neaForecast} model={pm25Forecast} now={observedAt.getTime()} />
           <FiresCard hotspots={hotspots} wind={wind.islandwide} />
+          {!neaForecast && !hotspots && (
+            <Card title="Forecast" className="lg:col-span-2">
+              <p className="text-sm text-ink-2">Forecasts aren&apos;t available yet. They refresh every half hour, so check back soon.</p>
+            </Card>
+          )}
         </div>
       ),
     },
@@ -166,7 +177,7 @@ function Headline({ title, value, unit, band }: { title: string; value: string; 
     <div>
       <h2 className="text-sm font-medium text-ink-2">{title}</h2>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-5xl font-semibold tracking-tight">{value}</span>
+        <span className="text-4xl font-semibold tracking-tight sm:text-5xl">{value}</span>
         {unit && <span className="text-sm text-muted">{unit}</span>}
       </div>
       <StatusLabel band={band} className="mt-1 text-base font-medium" />

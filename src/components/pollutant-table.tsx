@@ -2,6 +2,7 @@ import { fmtDateTime } from "@/lib/format";
 import type { LatestReading } from "@/lib/queries";
 import type { MeasureKey } from "@/lib/schema";
 import { drivingPollutant } from "@/lib/summary";
+import { Card } from "./card";
 
 const POLLUTANT_COLUMNS: { key: MeasureKey; label: string; unit: string }[] = [
   { key: "pm25_24h", label: "PM2.5 24h", unit: "µg/m³" },
@@ -14,7 +15,7 @@ const POLLUTANT_COLUMNS: { key: MeasureKey; label: string; unit: string }[] = [
 
 function Th({ label, sub, first }: { label: string; sub?: string; first?: boolean }) {
   return (
-    <th className={`py-2 font-medium ${first ? "px-5 text-left" : "px-3"}`}>
+    <th className={`py-2 align-bottom font-medium ${first ? "px-5 text-left" : "px-3"}`}>
       {label}
       {sub && <span className="block font-normal">{sub}</span>}
     </th>
@@ -24,10 +25,17 @@ function Th({ label, sub, first }: { label: string; sub?: string; first?: boolea
 /** Latest pollutant concentrations per region, with the pollutant driving each PSI. */
 export function PollutantTable({ readings, observedAt }: { readings: LatestReading[]; observedAt: Date }) {
   return (
-    <section className="rounded-xl border border-border bg-surface">
-      <h2 className="px-5 pt-4 text-sm font-medium">Pollutant readings · {fmtDateTime.format(observedAt)}</h2>
-      <div className="overflow-x-auto">
-        <table className="tabular mt-2 w-full min-w-[40rem] text-right text-sm">
+    <Card
+      title="Pollutant readings"
+      subtitle={
+        <>
+          {fmtDateTime.format(observedAt)} · the pollutant with the highest sub-index sets the PSI
+          <span className="sm:hidden"> · scroll sideways for more</span>
+        </>
+      }
+    >
+      <div className="-mx-5 -mb-5 overflow-x-auto">
+        <table className="tabular w-full min-w-[40rem] text-right text-sm">
           <thead className="text-xs text-muted">
             <tr>
               <Th label="Region" first />
@@ -46,12 +54,12 @@ export function PollutantTable({ readings, observedAt }: { readings: LatestReadi
                     {r[c.key] ?? "–"}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-ink-2">{drivingPollutant(r)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-ink-2">{drivingPollutant(r)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }

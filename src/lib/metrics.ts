@@ -12,9 +12,7 @@ export type MetricId = "pm25" | "psi";
 
 export interface Metric {
   id: MetricId;
-  /** Short toggle label. */
-  label: string;
-  /** Full name, e.g. for tile captions and share text. */
+  /** Name for toggles, tile captions and share text. */
   name: string;
   unit: string;
   bands: Band[];
@@ -26,6 +24,6 @@ export interface Metric {
  * hours); 24-hr PSI is the official daily index (for planning ahead). NEA publishes no 1-hr PSI.
  */
 export const METRICS: Record<MetricId, Metric> = {
-  pm25: { id: "pm25", label: "Now", name: "1-hr PM2.5", unit: "µg/m³", bands: PM25_BANDS, value: (r) => r.pm25_1h },
-  psi: { id: "psi", label: "24-hr PSI", name: "24-hr PSI", unit: "", bands: PSI_BANDS, value: (r) => r.psi24h },
+  pm25: { id: "pm25", name: "1-hr PM2.5", unit: "µg/m³", bands: PM25_BANDS, value: (r) => r.pm25_1h },
+  psi: { id: "psi", name: "24-hr PSI", unit: "", bands: PSI_BANDS, value: (r) => r.psi24h },
 };
