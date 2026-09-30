@@ -69,7 +69,7 @@ src/lib/wind.ts         station wind → islandwide and per-region averages
 src/lib/geo.ts          region locations, nearest region to a point
 src/lib/bands.ts        NEA PSI / PM2.5 bands, chart thresholds, health advisories
 src/app/page.tsx        dashboard
-src/components/         charts, region map, mascot, tables, page shell
+src/components/         chart, region map, mascot, pollutant table, page shell
 src/assets/mascots/     mascot artwork
 ```
 
@@ -78,7 +78,7 @@ src/assets/mascots/     mascot artwork
 - **Region explorer.** Tiles for NEA's five regions. Selecting one updates the mascot and shows that area's wind: direction, speed, and a note when south-westerly winds can bring smoke from Sumatra. Wind comes from NEA's 17 weather stations, averaged for each region.
 - **Can I go out?** NEA's official 1-hr PM2.5 guide for the next hour, for the general public or vulnerable people. It uses your area, which you can pick or detect with "Use my location". Your choices are saved in the browser.
 - **How today compares.** Where today's PSI ranks among the past year's hours, when it was last this high, and the reading a year ago. It shows how complete the stored history is. Load the full year with `npm run backfill -- 365`.
-- **Charts** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). Lines break where data is missing.
+- **Trend chart** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). It follows the **Now / 24-hr PSI** toggle (1-hr PM2.5 by default), which is shared with the region explorer. Lines break where data is missing.
 - **Installable app (PWA).** It can be added to the Home Screen with its own icon and opens full-screen. On iPhone, use Safari's Share → **Add to Home Screen**; the header's **Install** button shows these steps. On Android and desktop Chrome/Edge, the **Install** button opens the browser's prompt. When installed, it opens offline with the last reading it saved and says it's offline. The service worker is `public/sw.js`, the manifest is `src/app/manifest.ts`, and the icons are in `public/icons/` and `src/app/`.
 - **Light/dark theme toggle.** It follows the OS setting until you choose, and remembers your choice.
 

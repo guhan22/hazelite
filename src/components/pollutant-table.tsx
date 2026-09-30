@@ -1,6 +1,6 @@
-import { fmtDateTime, fmtPoint, titleCase } from "@/lib/format";
-import type { Bucket, LatestReading, SeriesPoint } from "@/lib/queries";
-import type { MeasureKey, Region } from "@/lib/schema";
+import { fmtDateTime } from "@/lib/format";
+import type { LatestReading } from "@/lib/queries";
+import type { MeasureKey } from "@/lib/schema";
 import { drivingPollutant } from "@/lib/summary";
 
 const POLLUTANT_COLUMNS: { key: MeasureKey; label: string; unit: string }[] = [
@@ -18,39 +18,6 @@ function Th({ label, sub, first }: { label: string; sub?: string; first?: boolea
       {label}
       {sub && <span className="block font-normal">{sub}</span>}
     </th>
-  );
-}
-
-/** PSI · PM2.5 per region (hourly, or daily maximum), newest first: the table view of the charts. */
-export function ReadingsTable({ series, regions, bucket }: { series: SeriesPoint[]; regions: Region[]; bucket: Bucket }) {
-  return (
-    <details className="mt-6 rounded-xl border border-border bg-surface">
-      <summary className="cursor-pointer px-5 py-3 text-sm font-medium">View readings as a table</summary>
-      <div className="max-h-96 overflow-auto border-t border-border">
-        <table className="tabular w-full text-right text-sm">
-          <thead className="sticky top-0 bg-surface text-xs text-muted">
-            <tr>
-              <Th label={bucket === "day" ? "Date (daily max)" : "Time (SGT)"} first />
-              {regions.map((r) => (
-                <Th key={r} label={titleCase(r)} sub="PSI · PM2.5" />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {series.toReversed().map((p) => (
-              <tr key={p.t} className="border-t border-border">
-                <td className="px-5 py-1.5 text-left text-ink-2">{fmtPoint(p.t, bucket)}</td>
-                {regions.map((r) => (
-                  <td key={r} className="px-3 py-1.5">
-                    {p.values[r]?.psi ?? "–"} · {p.values[r]?.pm25 ?? "–"}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </details>
   );
 }
 

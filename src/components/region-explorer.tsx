@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { bandFor, pm25GuideFor } from "@/lib/bands";
 import { sgtFormat, titleCase } from "@/lib/format";
-import { METRICS, type MetricId, type TileReading } from "@/lib/metrics";
+import { METRICS, type TileReading } from "@/lib/metrics";
 import type { SeriesPoint } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { worstBy } from "@/lib/summary";
@@ -11,6 +11,7 @@ import { tipsFor } from "@/lib/tips";
 import type { Wind } from "@/lib/wind";
 import { HazeOverlay } from "./haze-overlay";
 import { MOOD_LABEL } from "./mascot";
+import { MetricToggle, useMetric } from "./metric-toggle";
 import { PlayfulMascot } from "./playful-mascot";
 import { RegionMap } from "./region-map";
 import { ShareButton } from "./share-button";
@@ -35,7 +36,7 @@ const frameReadings = (p: SeriesPoint): TileReading[] =>
  */
 export function RegionExplorer({ readings, replay, wind }: Props) {
   const [selected, setSelected] = useState<Region | null>(null);
-  const [metricId, setMetricId] = useState<MetricId>("pm25");
+  const [metricId] = useMetric();
   const [frame, setFrame] = useState<number | null>(null);
   const [tip, setTip] = useState<number | null>(null);
   const onFrame = useCallback((i: number | null) => setFrame(i), []);
@@ -64,21 +65,7 @@ export function RegionExplorer({ readings, replay, wind }: Props) {
     <div className="flex flex-col gap-4">
       <HazeOverlay pm25={focus?.pm25_1h ?? null} />
 
-      <div className="flex gap-1.5 text-xs" role="group" aria-label="Show">
-        {(Object.values(METRICS) as (typeof METRICS)[MetricId][]).map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            aria-pressed={m.id === metricId}
-            onClick={() => setMetricId(m.id)}
-            className={`rounded-full border px-3 py-1 transition-colors ${
-              m.id === metricId ? "border-ink bg-ink text-page" : "border-border text-ink-2 hover:bg-grid"
-            }`}
-          >
-            {m.id === "pm25" ? `${m.label} · ${m.name}` : m.label}
-          </button>
-        ))}
-      </div>
+      <MetricToggle />
 
       <div className="flex items-end gap-3">
         <PlayfulMascot

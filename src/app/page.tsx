@@ -3,13 +3,15 @@ import { after } from "next/server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { HistoryCard } from "@/components/history-card";
 import { OutdoorPlanner } from "@/components/outdoor-planner";
-import { PollutantTable, ReadingsTable } from "@/components/readings-tables";
+import { ByMetric, MetricProvider, MetricToggle } from "@/components/metric-toggle";
+import { PollutantTable } from "@/components/pollutant-table";
 import { RegionExplorer } from "@/components/region-explorer";
 import { Notice, Shell } from "@/components/shell";
 import { StatusLabel } from "@/components/status";
 import { TrendChart, type ChartSeries } from "@/components/trend-chart";
 import { advisoryFor, bandFor, PM25_BANDS, PSI_BANDS, thresholdsFor, type Band } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
+import type { MetricId } from "@/lib/metrics";
 import {
   getHistoryContext,
   getLatest,
@@ -30,11 +32,11 @@ export const dynamic = "force-dynamic";
 const REGION_ORDER: Region[] = ["central", "north", "south", "east", "west"];
 const SERIES: ChartSeries[] = REGION_ORDER.map((r, i) => ({ key: r, label: titleCase(r), color: `var(--series-${i + 1})` }));
 
-// 1-hr PM2.5 first: it's NEA's "right now" measure; 24-hr PSI is the daily index.
-const CHARTS: { field: "psi" | "pm25"; title: string; subtitle: string; unit: string; bands: Band[] }[] = [
-  { field: "pm25", title: "1-hr PM2.5 by region", subtitle: "Hourly fine particulate concentration, µg/m³", unit: "µg/m³", bands: PM25_BANDS },
-  { field: "psi", title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS },
-];
+// One chart, following the Now / 24-hr PSI toggle.
+const CHARTS: Record<MetricId, { title: string; subtitle: string; unit: string; bands: Band[] }> = {
+  pm25: { title: "1-hr PM2.5 by region", subtitle: "Hourly fine particulate concentration, µg/m³", unit: "µg/m³", bands: PM25_BANDS },
+  psi: { title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS },
+};
 const REPLAY_HOURS = 72;
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -88,91 +90,100 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const worst = worstRegion(latest)!;
   const byRegion = new Map(latest.map((r) => [r.region, r]));
   const inOrder = (order: readonly Region[]) => order.flatMap((r) => byRegion.get(r) ?? []);
+  const chart = (field: MetricId) => {
+    const c = CHARTS[field];
+    return (
+      <>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">{c.title}</h2>
+            <p className="text-xs text-muted">
+              {c.subtitle}
+              {bucket === "day" && " · daily maximum"}
+            </p>
+          </div>
+          <MetricToggle />
+        </div>
+        <TrendChart
+          series={SERIES}
+          points={series.map((p) => ({ t: p.t, v: REGION_ORDER.map((r) => p.values[r]?.[field] ?? null) }))}
+          unit={c.unit}
+          ariaLabel={`${c.title} over the last ${rangeLabel}`}
+          bucket={bucket}
+          thresholds={thresholdsFor(c.bands)}
+        />
+      </>
+    );
+  };
 
   return (
     <Shell observedAt={observedAt} refreshFailed={refreshFailed}>
       <AutoRefresh />
+      <MetricProvider>
+        {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
+        <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
+          <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} />
 
-      {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
-      <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
-        <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} />
-
-        <div className="flex flex-col gap-5">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
-            <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
-          </div>
-
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Stat label="Highest region" value={titleCase(worst.region)}>
-              PSI {worst.psi24h ?? "–"}
-            </Stat>
-            <Stat label="Change vs 24 hrs ago" value={delta == null ? "–" : `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}`}>
-              <span style={{ color: !delta ? "var(--muted)" : delta > 0 ? "var(--delta-bad)" : "var(--delta-good)" }}>
-                {delta == null ? "No data" : delta > 0 ? "▲ Worsening" : delta < 0 ? "▼ Improving" : "Unchanged"}
-              </span>
-            </Stat>
-          </dl>
-
-          {psiBand && (
-            <div>
-              <h3 className="mb-2 text-sm font-medium text-ink-2">
-                Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
-              </h3>
-              <ul className="grid gap-2 sm:grid-cols-3">
-                {advisoryFor(psiBand.severity).map((a) => (
-                  <li key={a.group} className="rounded-lg border border-border px-3 py-2">
-                    <div className="text-xs text-muted">{a.group}</div>
-                    <div className="text-sm">{a.advice}</div>
-                  </li>
-                ))}
-              </ul>
+          <div className="flex flex-col gap-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
+              <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
             </div>
-          )}
 
-          {psi && history && <HistoryCard psi={psi.max} at={observedAt} history={history} />}
-        </div>
-      </section>
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Stat label="Highest region" value={titleCase(worst.region)}>
+                PSI {worst.psi24h ?? "–"}
+              </Stat>
+              <Stat label="Change vs 24 hrs ago" value={delta == null ? "–" : `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}`}>
+                <span style={{ color: !delta ? "var(--muted)" : delta > 0 ? "var(--delta-bad)" : "var(--delta-good)" }}>
+                  {delta == null ? "No data" : delta > 0 ? "▲ Worsening" : delta < 0 ? "▼ Improving" : "Unchanged"}
+                </span>
+              </Stat>
+            </dl>
 
-      <OutdoorPlanner readings={latest} />
+            {psiBand && (
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-ink-2">
+                  Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
+                </h3>
+                <ul className="grid gap-2 sm:grid-cols-3">
+                  {advisoryFor(psiBand.severity).map((a) => (
+                    <li key={a.group} className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-xs text-muted">{a.group}</div>
+                      <div className="text-sm">{a.advice}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-      <nav className="mt-8 flex flex-wrap items-center gap-2" aria-label="Time range">
-        {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((k) => (
-          <Link
-            key={k}
-            href={`/?range=${k}`}
-            scroll={false}
-            aria-current={k === rangeKey ? "page" : undefined}
-            className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-              k === rangeKey ? "border-ink bg-ink text-page" : "border-border bg-surface text-ink-2 hover:bg-grid"
-            }`}
-          >
-            {RANGES[k].label}
-          </Link>
-        ))}
-      </nav>
+            {psi && history && <HistoryCard psi={psi.max} at={observedAt} history={history} />}
+          </div>
+        </section>
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-2">
-        {CHARTS.map((c) => (
-          <section key={c.field} className="min-w-0 rounded-xl border border-border bg-surface p-5">
-            <h2 className="text-base font-semibold">{c.title}</h2>
-            <p className="mb-3 text-xs text-muted">
-              {c.subtitle}
-              {bucket === "day" && " · daily maximum"}
-            </p>
-            <TrendChart
-              series={SERIES}
-              points={series.map((p) => ({ t: p.t, v: REGION_ORDER.map((r) => p.values[r]?.[c.field] ?? null) }))}
-              unit={c.unit}
-              ariaLabel={`${c.title} over the last ${rangeLabel}`}
-              bucket={bucket}
-              thresholds={thresholdsFor(c.bands)}
-            />
-          </section>
-        ))}
-      </div>
+        <OutdoorPlanner readings={latest} />
 
-      <ReadingsTable series={series} regions={REGION_ORDER} bucket={bucket} />
+        <nav className="mt-8 flex flex-wrap items-center gap-2" aria-label="Time range">
+          {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((k) => (
+            <Link
+              key={k}
+              href={`/?range=${k}`}
+              scroll={false}
+              aria-current={k === rangeKey ? "page" : undefined}
+              className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                k === rangeKey ? "border-ink bg-ink text-page" : "border-border bg-surface text-ink-2 hover:bg-grid"
+              }`}
+            >
+              {RANGES[k].label}
+            </Link>
+          ))}
+        </nav>
+
+        <section className="mt-4 min-w-0 rounded-xl border border-border bg-surface p-5">
+          <ByMetric views={{ pm25: chart("pm25"), psi: chart("psi") }} />
+        </section>
+      </MetricProvider>
+
       <PollutantTable readings={inOrder(REGION_ORDER)} observedAt={observedAt} />
     </Shell>
   );
