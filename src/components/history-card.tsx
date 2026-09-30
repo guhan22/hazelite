@@ -2,6 +2,7 @@ import { bandFor, PSI_BANDS } from "@/lib/bands";
 import { fmtDate } from "@/lib/format";
 import type { HistoryContext } from "@/lib/queries";
 import { DAY } from "@/lib/time";
+import { Card } from "./card";
 import { StatusLabel } from "./status";
 
 const YEAR_MS = 365 * DAY;
@@ -13,9 +14,8 @@ export function HistoryCard({ psi, at, history }: { psi: number; at: Date; histo
   const period = fullYear ? "the past year" : `stored history (since ${fmtDate.format(recordsSince ?? at)})`;
 
   return (
-    <section className="rounded-lg border border-border px-3 py-2.5 text-sm" aria-label="How today compares">
-      <h3 className="text-xs text-muted">How today compares</h3>
-      <ul className="mt-1 space-y-1">
+    <Card title="How today compares" subtitle="Islandwide 24-hr PSI against the stored history" className="text-sm">
+      <ul className="space-y-1">
         {percentile != null && (
           <li>
             Worse than <strong className="font-semibold">{percentile}%</strong> of hours in {period}
@@ -43,6 +43,6 @@ export function HistoryCard({ psi, at, history }: { psi: number; at: Date; histo
           Based on {coverage}% of the hours in that period; older readings are still being loaded.
         </p>
       )}
-    </section>
+    </Card>
   );
 }

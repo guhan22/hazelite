@@ -24,7 +24,7 @@ function Th({ label, sub, first }: { label: string; sub?: string; first?: boolea
 /** Latest pollutant concentrations per region, with the pollutant driving each PSI. */
 export function PollutantTable({ readings, observedAt }: { readings: LatestReading[]; observedAt: Date }) {
   return (
-    <section className="mt-6 rounded-xl border border-border bg-surface">
+    <section className="rounded-xl border border-border bg-surface">
       <h2 className="px-5 pt-4 text-sm font-medium">Pollutant readings · {fmtDateTime.format(observedAt)}</h2>
       <div className="overflow-x-auto">
         <table className="tabular mt-2 w-full min-w-[40rem] text-right text-sm">

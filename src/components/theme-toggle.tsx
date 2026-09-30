@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { chromeButton } from "./styles";
 
 type Theme = "light" | "dark";
 const EVENT = "hazelite:theme";
@@ -42,7 +43,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={`Switch to ${next} theme`}
       title={`Switch to ${next} theme`}
-      className="grid size-9 place-items-center rounded-full border border-border bg-surface text-ink-2 transition-colors hover:bg-grid hover:text-ink focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+      className={`grid size-9 place-items-center ${chromeButton}`}
     >
       {theme && (
         <svg width="1.125rem" height="1.125rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>

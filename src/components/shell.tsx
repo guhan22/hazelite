@@ -1,4 +1,5 @@
 import { fmtDateTime } from "@/lib/format";
+import { AlertsButton } from "./alerts-button";
 import { InstallButton } from "./install-button";
 import { OfflineNotice } from "./offline-notice";
 import { ThemeToggle } from "./theme-toggle";
@@ -28,6 +29,8 @@ export function Shell({
             </p>
           )}
           <InstallButton />
+          {/* Public key, read at request time so alerts switch on with the env var, no rebuild needed. */}
+          {process.env.VAPID_PUBLIC_KEY && <AlertsButton vapidKey={process.env.VAPID_PUBLIC_KEY} />}
           <ThemeToggle />
         </div>
       </header>

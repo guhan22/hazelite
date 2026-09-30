@@ -2,7 +2,7 @@
 
 import { createContext, use, useState, type ReactNode } from "react";
 import { METRICS, type MetricId } from "@/lib/metrics";
-import { pill } from "./pill";
+import { pill } from "./styles";
 
 const MetricContext = createContext<readonly [MetricId, (id: MetricId) => void]>(["pm25", () => {}]);
 

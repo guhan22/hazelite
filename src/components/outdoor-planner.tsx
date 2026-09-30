@@ -8,7 +8,7 @@ import type { LatestReading } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { useStoredChoice } from "@/lib/use-stored-choice";
 import { Card } from "./card";
-import { pill } from "./pill";
+import { field, pill } from "./styles";
 import { StatusIcon } from "./status";
 
 const PROFILES: { id: Profile; label: string }[] = [
@@ -65,7 +65,7 @@ export function OutdoorPlanner({
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value as Region)}
-            className="rounded-full border border-border bg-surface px-3 py-1 text-ink"
+            className={field}
           >
             {REGIONS.map((r) => (
               <option key={r} value={r}>

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { after } from "next/server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FiresCard } from "@/components/fires-card";
@@ -10,6 +11,7 @@ import { PollutantTable } from "@/components/pollutant-table";
 import { RegionExplorer } from "@/components/region-explorer";
 import { Notice, Shell } from "@/components/shell";
 import { StatusLabel } from "@/components/status";
+import { Tabs, type Tab } from "@/components/tabs";
 import { TrendSection } from "@/components/trend-section";
 import { advisoryFor, bandFor, PM25_BANDS, PSI_BANDS, type Band } from "@/lib/bands";
 import { getDashboard } from "@/lib/dashboard";
@@ -24,8 +26,13 @@ import { HOUR, sgtDayStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
+const TAB_IDS = ["now", "forecast", "trends", "news"];
+/** Allow-lists the `tab` query parameter. */
+const parseTab = (value: unknown) => (typeof value === "string" && TAB_IDS.includes(value) ? value : TAB_IDS[0]);
+
 export default async function Home({ searchParams }: PageProps<"/">) {
-  const rangeKey = parseRange((await searchParams).range);
+  const params = await searchParams;
+  const rangeKey = parseRange(params.range);
   // Once the response is sent, pull fresh data if it has gone stale.
   after(refreshIfStale);
 
@@ -65,65 +72,91 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const hazeSoon = [...new Set(neaForecast?.twoHour?.areas.filter((a) => isHazy(a.forecast)).map((a) => a.region))];
   const tomorrow = sgtDayStart(observedAt.getTime(), 1);
   const tomorrowPm25 = forecastMax(pm25Forecast, tomorrow + 7 * HOUR, tomorrow + 19 * HOUR);
-  const elevated = [psiBand, pmBand].some((b) => b && b.severity !== "good");
+
+  const tabs: Tab[] = [
+    {
+      id: "now",
+      label: "Now",
+      content: (
+        <Fragment key="now">
+          {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
+          <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
+            <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
+
+            <div className="flex flex-col gap-5">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
+                <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
+              </div>
+
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Stat label="Highest region" value={titleCase(worst.region)}>
+                  PSI {worst.psi24h ?? "–"}
+                </Stat>
+                <Stat label="Change vs 24 hrs ago" value={delta == null ? "–" : `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}`}>
+                  <span style={{ color: !delta ? "var(--muted)" : delta > 0 ? "var(--delta-bad)" : "var(--delta-good)" }}>
+                    {delta == null ? "No data" : delta > 0 ? "▲ Worsening" : delta < 0 ? "▼ Improving" : "Unchanged"}
+                  </span>
+                </Stat>
+              </dl>
+
+              {psiBand && (
+                <div>
+                  <h3 className="mb-2 text-sm font-medium text-ink-2">
+                    Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
+                  </h3>
+                  <ul className="grid gap-2 sm:grid-cols-3">
+                    {advisoryFor(psiBand.severity).map((a) => (
+                      <li key={a.group} className="rounded-lg border border-border px-3 py-2">
+                        <div className="text-xs text-muted">{a.group}</div>
+                        <div className="text-sm">{a.advice}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </section>
+          <OutdoorPlanner readings={latest} tomorrow={tomorrowPm25} />
+        </Fragment>
+      ),
+    },
+    {
+      id: "forecast",
+      label: "Forecast",
+      content: (
+        <div key="forecast" className="grid items-start gap-6 lg:grid-cols-2">
+          <OutlookCard nea={neaForecast} model={pm25Forecast} now={observedAt.getTime()} />
+          <FiresCard hotspots={hotspots} wind={wind.islandwide} />
+        </div>
+      ),
+    },
+    {
+      id: "trends",
+      label: "Trends",
+      content: (
+        <div key="trends" className="space-y-6">
+          <TrendSection series={series} range={rangeKey} forecast={pm25Forecast} hrefFor={(k) => `/?tab=trends&range=${k}`} />
+          {psi && history && <HistoryCard psi={psi.max} at={observedAt} history={history} />}
+          <PollutantTable readings={inOrder(DISPLAY_ORDER)} observedAt={observedAt} />
+        </div>
+      ),
+    },
+    {
+      id: "news",
+      label: "News",
+      badge: news?.length ? <span key="badge" className="tabular rounded-full bg-grid px-1.5 text-[0.6875rem] text-ink-2">{news.length}</span> : null,
+      content: <NewsCard key="news" items={news} />,
+    },
+  ];
 
   return (
     <Shell observedAt={observedAt} refreshFailed={refreshFailed}>
       <AutoRefresh />
+      {/* The Now / 24-hr PSI choice is shared by the explorer (Now) and the chart (Trends). */}
       <MetricProvider>
-        {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
-        <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
-          <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
-
-          <div className="flex flex-col gap-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
-              <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
-            </div>
-
-            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Stat label="Highest region" value={titleCase(worst.region)}>
-                PSI {worst.psi24h ?? "–"}
-              </Stat>
-              <Stat label="Change vs 24 hrs ago" value={delta == null ? "–" : `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}`}>
-                <span style={{ color: !delta ? "var(--muted)" : delta > 0 ? "var(--delta-bad)" : "var(--delta-good)" }}>
-                  {delta == null ? "No data" : delta > 0 ? "▲ Worsening" : delta < 0 ? "▼ Improving" : "Unchanged"}
-                </span>
-              </Stat>
-            </dl>
-
-            {psiBand && (
-              <div>
-                <h3 className="mb-2 text-sm font-medium text-ink-2">
-                  Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
-                </h3>
-                <ul className="grid gap-2 sm:grid-cols-3">
-                  {advisoryFor(psiBand.severity).map((a) => (
-                    <li key={a.group} className="rounded-lg border border-border px-3 py-2">
-                      <div className="text-xs text-muted">{a.group}</div>
-                      <div className="text-sm">{a.advice}</div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {psi && history && <HistoryCard psi={psi.max} at={observedAt} history={history} />}
-          </div>
-        </section>
-
-        <OutdoorPlanner readings={latest} tomorrow={tomorrowPm25} />
-
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-          <OutlookCard nea={neaForecast} model={pm25Forecast} now={observedAt.getTime()} />
-          <FiresCard hotspots={hotspots} wind={wind.islandwide} />
-        </div>
-
-        <TrendSection series={series} range={rangeKey} forecast={pm25Forecast} />
+        <Tabs tabs={tabs} initial={parseTab(params.tab)} />
       </MetricProvider>
-
-      <NewsCard items={news} open={elevated} />
-      <PollutantTable readings={inOrder(DISPLAY_ORDER)} observedAt={observedAt} />
     </Shell>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { isIos, isStandalone } from "@/lib/platform";
+import { chromeButton } from "./styles";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -9,14 +11,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 type Platform = "installed" | "ios" | "other";
 
-function detectPlatform(): Platform {
-  const standalone =
-    matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  if (standalone) return "installed";
-  // iPadOS reports itself as a Mac, so also check for touch.
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  return ios ? "ios" : "other";
-}
+const detectPlatform = (): Platform => (isStandalone() ? "installed" : isIos() ? "ios" : "other");
 
 const noSubscribe = () => () => {};
 
@@ -60,7 +55,7 @@ export function InstallButton() {
         type="button"
         onClick={onClick}
         aria-expanded={prompt ? undefined : showSteps}
-        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-sm text-ink-2 transition-colors hover:bg-grid hover:text-ink focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+        className={`inline-flex h-9 items-center gap-1.5 px-3 text-sm ${chromeButton}`}
       >
         <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />

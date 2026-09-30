@@ -25,6 +25,7 @@ When the server starts, it runs the migrations. If the database is empty, it bac
 ## API
 
 - `GET /api/readings?range=24h|3d|7d|30d|3m`: the latest reading for each region plus the series
+- `POST /api/push` (same-origin JSON: a PushSubscription plus `region`, `level`, `profile`) subscribes to alerts; `DELETE /api/push` with `{ endpoint }` unsubscribes. Endpoints must belong to a known push service.
 - `GET` or `POST /api/ingest`: triggers a refresh right away. It requires `Authorization: Bearer <CRON_SECRET or INGEST_TOKEN>`. With neither set, the endpoint rejects every request.
 
 ## Deploying (free: Vercel Hobby + Neon)
@@ -40,7 +41,7 @@ A serverless host has no always-on process, so instead of the background poller 
 
 Setup:
 1. **Neon.** Create a project in *AWS US West 2 (Oregon)* and set compute to 0.25 CU. Copy the **direct** connection string (pooling off: the migration lock needs a session) and use `sslmode=verify-full`.
-2. **Vercel.** Import the GitHub repo. Set `DATABASE_URL`, `CRON_SECRET` and `INGEST_TOKEN` (for example `openssl rand -hex 32`) for Production. `FIRMS_MAP_KEY` turns on the fire-hotspot card, and `DATA_GOV_SG_API_KEY` is optional.
+2. **Vercel.** Import the GitHub repo. Set `DATABASE_URL`, `CRON_SECRET` and `INGEST_TOKEN` (for example `openssl rand -hex 32`) for Production. `FIRMS_MAP_KEY` turns on the fire-hotspot card, `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (`npx web-push generate-vapid-keys`) turn on alerts, and `DATA_GOV_SG_API_KEY` is optional.
 3. **GitHub.** Add the same `INGEST_TOKEN` as an Actions secret for the hourly refresh. GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab.
 4. **Push to `main`.** Vercel builds, migrates and deploys. Pushes to other branches become previews.
 
@@ -58,7 +59,7 @@ Free-tier limits: Neon gives 100 CU-hours and 0.5 GB a month and suspends after 
 ## Layout
 
 ```
-db/migrations/          SQL schema (readings, ingest_runs, wind_stations, wind_readings)
+db/migrations/          SQL schema (readings, ingest_runs, wind, feeds, push_subscriptions)
 scripts/cli.ts          migrate / ingest / backfill CLI
 vercel.json             function region and the daily cron
 src/instrumentation.ts  starts the background poller on long-running servers (not on Vercel)
@@ -70,6 +71,8 @@ src/lib/forecast.ts     Open-Meteo PM2.5 forecast
 src/lib/fires.ts        NASA FIRMS hotspots, counted per fire region
 src/lib/news.ts         Google News RSS headlines
 src/lib/dashboard.ts    loads everything the dashboard shows
+src/lib/push.ts         Web Push: subscription validation, storage and sending
+src/lib/alerts.ts       when to alert, clear or stay quiet, per subscriber
 src/lib/ingest.ts       upserts into Postgres (one run at a time)
 src/lib/queries.ts      dashboard queries
 src/lib/summary.ts      derived figures (ranges, worst region, driving pollutant)
@@ -89,7 +92,9 @@ src/assets/mascots/     mascot artwork
 - **How today compares.** Where today's PSI ranks among the past year's hours, when it was last this high, and the reading a year ago. It shows how complete the stored history is. Load the full year with `npm run backfill -- 365`.
 - **Outlook.** NEA's forecast for the next 2 hours (flagging areas with haze, which also shows on the region tiles), the next 24 hours and the next 4 days. Each is paired with the model's PM2.5 forecast. "Can I go out?" also gives tomorrow's daytime guidance from it.
 - **Where the smoke comes from.** Daily fire hotspots in Sumatra and Borneo from NASA's VIIRS satellite (NOAA-20), compared with the previous days, and whether the current wind blows from either region.
-- **In the news.** The week's haze headlines, expanded when air quality isn't good.
+- **In the news.** The week's haze headlines.
+- **Haze alerts.** The bell in the header subscribes this browser to push notifications for an area: one when its 1-hr PM2.5 reaches the band you pick (Elevated, High or Very high), again if it gets worse, and one when it clears. Alerts are checked after every refresh (hourly), with a 2-hour cooldown so a reading hovering on a boundary doesn't spam. A confirmation is sent on subscribing. On iPhone and iPad, alerts work only in the installed app (iOS 16.4+). The server stores only the push address and the three choices (`src/lib/push.ts`, `src/lib/alerts.ts`).
+- **Tabs.** Now, Forecast, Trends and News, so everything is a tap away instead of a long scroll. The active tab is kept in `?tab=`.
 - **Trend chart** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). It follows the **Now / 24-hr PSI** toggle (1-hr PM2.5 by default), which is shared with the region explorer. The hourly PM2.5 chart continues with a dashed model forecast. Lines break where data is missing.
 - **Installable app (PWA).** It can be added to the Home Screen with its own icon and opens full-screen. On iPhone, use Safari's Share → **Add to Home Screen**; the header's **Install** button shows these steps. On Android and desktop Chrome/Edge, the **Install** button opens the browser's prompt. When installed, it opens offline with the last reading it saved and says it's offline. The service worker is `public/sw.js`, the manifest is `src/app/manifest.ts`, and the icons are in `public/icons/` and `src/app/`.
 - **Light/dark theme toggle.** It follows the OS setting until you choose, and remembers your choice.

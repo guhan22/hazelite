@@ -8,7 +8,7 @@ import { DISPLAY_ORDER } from "@/lib/schema";
 import { HOUR } from "@/lib/time";
 import { Card } from "./card";
 import { ByMetric, MetricToggle } from "./metric-toggle";
-import { pill } from "./pill";
+import { pill } from "./styles";
 import { TrendChart, type ChartPoint, type ChartSeries } from "./trend-chart";
 
 const REGION_SERIES: ChartSeries[] = DISPLAY_ORDER.map((r, i) => ({ key: r, label: titleCase(r), color: `var(--series-${i + 1})` }));
@@ -35,7 +35,18 @@ function withForecast(points: ChartPoint[], forecast: Pm25Forecast, spanHours: n
 }
 
 /** Time-range picker and the trend chart, which follows the Now / 24-hr PSI toggle. */
-export function TrendSection({ series, range, forecast }: { series: SeriesPoint[]; range: RangeKey; forecast: Pm25Forecast | null }) {
+export function TrendSection({
+  series,
+  range,
+  forecast,
+  hrefFor,
+}: {
+  series: SeriesPoint[];
+  range: RangeKey;
+  forecast: Pm25Forecast | null;
+  /** Link for another range (so the page can keep its other query params). */
+  hrefFor: (range: RangeKey) => string;
+}) {
   const { hours, bucket, label } = RANGES[range];
 
   const chart = (field: MetricId) => {
@@ -64,12 +75,12 @@ export function TrendSection({ series, range, forecast }: { series: SeriesPoint[
   };
 
   return (
-    <>
-      <nav className="mt-8 flex flex-wrap items-center gap-2" aria-label="Time range">
+    <div>
+      <nav className="flex flex-wrap items-center gap-2" aria-label="Time range">
         {(Object.keys(RANGES) as RangeKey[]).map((k) => (
           <Link
             key={k}
-            href={`/?range=${k}`}
+            href={hrefFor(k)}
             scroll={false}
             aria-current={k === range ? "page" : undefined}
             className={`text-sm ${pill(k === range)}`}
@@ -79,6 +90,6 @@ export function TrendSection({ series, range, forecast }: { series: SeriesPoint[
         ))}
       </nav>
       <ByMetric views={{ pm25: chart("pm25"), psi: chart("psi") }} />
-    </>
+    </div>
   );
 }

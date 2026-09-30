@@ -1,4 +1,5 @@
-// Hazelite service worker: lets the installed app open offline with the last reading it saw.
+// Hazelite service worker: lets the installed app open offline with the last reading it saw, and
+// shows haze alerts sent by the server (Web Push).
 // Bump VERSION to drop old caches after changing caching behaviour.
 const VERSION = "v1";
 const PAGES = `pages-${VERSION}`;
@@ -30,6 +31,34 @@ self.addEventListener("fetch", (event) => {
   } else if (url.pathname.startsWith("/_next/image")) {
     event.respondWith(staleWhileRevalidate(req));
   }
+});
+
+// Haze alerts. The payload is JSON { title, body, tag } from our server; anything else is ignored.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {}
+  const text = (v, fallback) => (typeof v === "string" ? v.slice(0, 200) : fallback);
+  event.waitUntil(
+    self.registration.showNotification(text(data.title, "Hazelite"), {
+      body: text(data.body, ""),
+      tag: text(data.tag, "hazelite"),
+      renotify: true,
+      icon: "/icons/icon-192.png",
+    }),
+  );
+});
+
+// Tapping an alert focuses the open app, or opens it. Always this site's home page, never a URL from the payload.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      return open ? open.focus() : self.clients.openWindow("/");
+    }),
+  );
 });
 
 /** Pages: always try for fresh data; offline, show this page's last copy, else the newest saved one. */
