@@ -8,9 +8,12 @@ export function range(values: (number | null)[]) {
 
 export const formatRange = (r: ReturnType<typeof range>) => (!r ? "–" : r.min === r.max ? `${r.max}` : `${r.min}–${r.max}`);
 
+/** The item with the highest value (nulls rank lowest). */
+export const worstBy = <T>(items: T[], value: (item: T) => number | null): T | undefined =>
+  items.reduce<T | undefined>((a, b) => (!a || (value(b) ?? -1) > (value(a) ?? -1) ? b : a), undefined);
+
 /** The region with the highest 24-hr PSI. */
-export const worstRegion = <T extends Pick<LatestReading, "psi24h">>(readings: T[]): T | undefined =>
-  readings.reduce<T | undefined>((a, b) => (!a || (b.psi24h ?? -1) > (a.psi24h ?? -1) ? b : a), undefined);
+export const worstRegion = <T extends Pick<LatestReading, "psi24h">>(readings: T[]) => worstBy(readings, (r) => r.psi24h);
 
 const SUB_INDICES = [
   ["PM2.5", "pm25Sub"],

@@ -28,6 +28,9 @@
   --status-hazardous: light-dark(#8a1c3c, #c2416a);
   --delta-bad: light-dark(#b42323, #f07070);
   --delta-good: light-dark(#006300, #0ca30c);
+
+  /* Smoky haze drawn over the hero as PM2.5 rises: warm grey on light, pale smoke on dark. */
+  --haze: light-dark(rgb(120 105 90), rgb(205 195 180));
 }
 
 :root[data-theme="light"] {
@@ -64,6 +67,14 @@ body {
   0% { transform: scale(0.92) rotate(-2deg); }
   60% { transform: scale(1.04) rotate(1deg); }
   100% { transform: scale(1) rotate(0); }
+}
+
+@keyframes dragon-wiggle {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-8deg) scale(1.05); }
+  40% { transform: rotate(6deg) scale(1.05); }
+  60% { transform: rotate(-4deg); }
+  80% { transform: rotate(2deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,7 +7,7 @@ export const RANGES = {
   "3d": { label: "3 days", hours: 72, bucket: "hour" },
   "7d": { label: "7 days", hours: 168, bucket: "hour" },
   "30d": { label: "30 days", hours: 720, bucket: "hour" },
-  "1y": { label: "1 year", hours: 8760, bucket: "day" },
+  "3m": { label: "3 months", hours: 2160, bucket: "day" },
 } as const;
 export type RangeKey = keyof typeof RANGES;
 export type Bucket = "hour" | "day";

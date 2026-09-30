@@ -30,10 +30,12 @@ export const dynamic = "force-dynamic";
 const REGION_ORDER: Region[] = ["central", "north", "south", "east", "west"];
 const SERIES: ChartSeries[] = REGION_ORDER.map((r, i) => ({ key: r, label: titleCase(r), color: `var(--series-${i + 1})` }));
 
+// 1-hr PM2.5 first: it's NEA's "right now" measure; 24-hr PSI is the daily index.
 const CHARTS: { field: "psi" | "pm25"; title: string; subtitle: string; unit: string; bands: Band[] }[] = [
-  { field: "psi", title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS },
   { field: "pm25", title: "1-hr PM2.5 by region", subtitle: "Hourly fine particulate concentration, µg/m³", unit: "µg/m³", bands: PM25_BANDS },
+  { field: "psi", title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS },
 ];
+const REPLAY_HOURS = 72;
 
 export default async function Home({ searchParams }: PageProps<"/">) {
   const rangeKey = parseRange((await searchParams).range);
@@ -42,15 +44,19 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const { hours, bucket, label: rangeLabel } = RANGES[rangeKey];
 
   let latest: LatestReading[], series: Awaited<ReturnType<typeof getSeries>>, refreshFailed: boolean;
-  let wind: Awaited<ReturnType<typeof getLatestWind>>;
+  let wind: Awaited<ReturnType<typeof getLatestWind>>, replay: typeof series;
+  // The replay always covers the last 72 hours, hourly; reuse the chart series when it's the same.
+  const sameAsReplay = hours === REPLAY_HOURS && bucket === "hour";
   try {
-    [latest, series, refreshFailed, wind] = await Promise.all([
+    [latest, series, refreshFailed, wind, replay] = await Promise.all([
       getLatest(),
       getSeries(hours, bucket),
       lastIngestFailed(),
       // Wind is a nice-to-have: without it the dashboard still renders.
       getLatestWind().catch(() => ({ islandwide: null, byRegion: {} })),
+      sameAsReplay ? Promise.resolve([]) : getSeries(REPLAY_HOURS, "hour"),
     ]);
+    if (sameAsReplay) replay = series;
   } catch {
     return (
       <Notice title="Can't reach the database.">
@@ -73,6 +79,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const psi = range(latest.map((r) => r.psi24h));
   const pm25 = range(latest.map((r) => r.pm25_1h));
   const psiBand = bandFor(PSI_BANDS, psi?.max);
+  const pmBand = bandFor(PM25_BANDS, pm25?.max);
   const [psiDayAgo, history] = await Promise.all([
     getNationalPsiAt(observedAt, 24),
     psi ? getHistoryContext(observedAt, psi.max) : null,
@@ -86,22 +93,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     <Shell observedAt={observedAt} refreshFailed={refreshFailed}>
       <AutoRefresh />
 
-      <section className="grid gap-6 rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
-        <RegionExplorer readings={inOrder(REGIONS)} wind={wind} />
+      {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
+      <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
+        <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} />
 
         <div className="flex flex-col gap-5">
-          <div>
-            <h2 className="text-sm font-medium text-ink-2">24-hr PSI, islandwide</h2>
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-              <span className="text-6xl font-semibold tracking-tight">{formatRange(psi)}</span>
-              <StatusLabel band={psiBand} className="text-lg font-medium" />
-            </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
+            <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
           </div>
 
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Stat label="1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³">
-              <StatusLabel band={bandFor(PM25_BANDS, pm25?.max)} />
-            </Stat>
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Stat label="Highest region" value={titleCase(worst.region)}>
               PSI {worst.psi24h ?? "–"}
             </Stat>
@@ -114,7 +116,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
           {psiBand && (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-ink-2">Health advisory</h3>
+              <h3 className="mb-2 text-sm font-medium text-ink-2">
+                Health advisory <span className="font-normal text-muted">· 24-hr PSI, for planning ahead</span>
+              </h3>
               <ul className="grid gap-2 sm:grid-cols-3">
                 {advisoryFor(psiBand.severity).map((a) => (
                   <li key={a.group} className="rounded-lg border border-border px-3 py-2">
@@ -171,6 +175,19 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       <ReadingsTable series={series} regions={REGION_ORDER} bucket={bucket} />
       <PollutantTable readings={inOrder(REGION_ORDER)} observedAt={observedAt} />
     </Shell>
+  );
+}
+
+function Headline({ title, value, unit, band }: { title: string; value: string; unit?: string; band: Band | null }) {
+  return (
+    <div>
+      <h2 className="text-sm font-medium text-ink-2">{title}</h2>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-5xl font-semibold tracking-tight">{value}</span>
+        {unit && <span className="text-sm text-muted">{unit}</span>}
+      </div>
+      <StatusLabel band={band} className="mt-1 text-base font-medium" />
+    </div>
   );
 }
 

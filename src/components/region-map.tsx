@@ -1,5 +1,5 @@
-import { bandFor, PM25_BANDS, PSI_BANDS } from "@/lib/bands";
-import type { LatestReading } from "@/lib/queries";
+import { bandFor } from "@/lib/bands";
+import { METRICS, type Metric, type TileReading } from "@/lib/metrics";
 import type { Region } from "@/lib/schema";
 import { StatusLabel, statusVar } from "./status";
 
@@ -11,21 +11,24 @@ const AREA: Record<Region, string> = {
   south: "3 / 2",
 };
 
-/** Schematic tile map of NEA's five reporting regions, arranged by compass position. */
+/** Schematic tile map of NEA's five reporting regions, coloured by the chosen metric. */
 export function RegionMap({
   readings,
+  metric,
   selected,
   onSelect,
 }: {
-  readings: LatestReading[];
+  readings: TileReading[];
+  metric: Metric;
   selected: Region | null;
   onSelect: (region: Region) => void;
 }) {
+  const other = metric.id === "psi" ? METRICS.pm25 : METRICS.psi;
   return (
-    <div className="grid grid-cols-3 grid-rows-3 gap-2" role="group" aria-label="24-hr PSI by region">
+    <div className="grid grid-cols-3 grid-rows-3 gap-2" role="group" aria-label={`${metric.name} by region`}>
       {readings.map((r) => {
-        const band = bandFor(PSI_BANDS, r.psi24h);
-        const pmBand = bandFor(PM25_BANDS, r.pm25_1h);
+        const value = metric.value(r);
+        const band = bandFor(metric.bands, value);
         const tint = band ? statusVar(band.severity) : "var(--grid)";
         const isSelected = selected === r.region;
         return (
@@ -34,7 +37,7 @@ export function RegionMap({
             type="button"
             aria-pressed={isSelected}
             onClick={() => onSelect(r.region)}
-            className={`flex min-h-24 flex-col justify-between rounded-lg border p-2.5 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)] sm:p-3 ${
+            className={`flex min-h-24 flex-col justify-between rounded-lg border p-2.5 text-left transition-[transform,background-color] duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)] sm:p-3 ${
               isSelected ? "ring-2 ring-[var(--ink)] ring-offset-2 ring-offset-[var(--surface)]" : ""
             }`}
             style={{
@@ -44,10 +47,13 @@ export function RegionMap({
             }}
           >
             <span className="text-xs font-medium capitalize text-ink-2">{r.region}</span>
-            <span className="text-2xl font-semibold leading-tight sm:text-3xl">{r.psi24h ?? "–"}</span>
+            <span className="text-2xl font-semibold leading-tight sm:text-3xl">
+              {value ?? "–"}
+              {metric.unit && <span className="ml-0.5 text-[0.625rem] font-normal text-muted">{metric.unit}</span>}
+            </span>
             <StatusLabel band={band} className="text-xs text-ink-2" />
-            <span className="mt-1 text-[0.6875rem] text-muted" title={pmBand ? `1-hr PM2.5 band: ${pmBand.label}` : undefined}>
-              PM2.5 {r.pm25_1h ?? "–"} µg/m³
+            <span className="mt-1 text-[0.6875rem] text-muted">
+              {other.name} {other.value(r) ?? "–"}
             </span>
           </button>
         );
