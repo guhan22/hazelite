@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Each token is light-dark(<light>, <dark>). The OS setting picks by default; the theme toggle
+   pins one by setting data-theme on <html>. */
+:root {
+  color-scheme: light dark;
+  --page: light-dark(#f9f9f7, #0d0d0d);
+  --surface: light-dark(#fcfcfb, #1a1a19);
+  --ink: light-dark(#0b0b0b, #ffffff);
+  --ink-2: light-dark(#52514e, #c3c2b7);
+  --muted: light-dark(#6f6e69, #9a9890);
+  --grid: light-dark(#e1e0d9, #2c2c2a);
+  --axis: light-dark(#c3c2b7, #383835);
+  --border: light-dark(rgba(11, 11, 11, 0.1), rgba(255, 255, 255, 0.1));
+
+  /* Region series: categorical slots 1–5, fixed order. */
+  --series-1: light-dark(#2a78d6, #3987e5);
+  --series-2: light-dark(#eb6834, #d95926);
+  --series-3: light-dark(#1baf7a, #199e70);
+  --series-4: light-dark(#eda100, #c98500);
+  --series-5: light-dark(#e87ba4, #d55181);
+
+  /* Status: reserved for air-quality bands, always paired with icon + label. */
+  --status-good: #0ca30c;
+  --status-moderate: #fab219;
+  --status-unhealthy: #ec835a;
+  --status-very-unhealthy: #d03b3b;
+  --status-hazardous: light-dark(#8a1c3c, #c2416a);
+  --delta-bad: light-dark(#b42323, #f07070);
+  --delta-good: light-dark(#006300, #0ca30c);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+  --color-border: var(--border);
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes mascot-pop {
+  0% { transform: scale(0.92) rotate(-2deg); }
+  60% { transform: scale(1.04) rotate(1deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
