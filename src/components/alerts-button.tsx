@@ -81,7 +81,7 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
     const subscription = sub ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(vapidKey) }));
     await callApi("POST", { subscription: subscription.toJSON(), region, level, profile, updates: updates === "on" });
     setSubscribed(true);
-    return `Alerts are on for ${titleCase(region)}. You should see a confirmation now.`;
+    return `Alerts are on for ${titleCase(region)}.`;
   });
 
   const turnOff = run(async () => {

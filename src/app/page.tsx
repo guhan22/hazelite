@@ -78,9 +78,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       id: "now",
       label: "Now",
       content: (
-        // Phones read top to bottom: the figures, then the map, then the guide. On wide screens the
-        // map takes the left column and the other two stack beside it.
+        // Phones read top to bottom: the mascot and map, then the figures, then the guide. On wide
+        // screens the map takes the left column and the other two stack beside it.
         <div key="now" className="grid gap-6 lg:grid-cols-[minmax(0,25rem)_1fr] lg:grid-rows-[auto_1fr]">
+          {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
+          <section
+            aria-label="Regions"
+            className="relative overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:col-start-1 lg:row-span-2 lg:row-start-1"
+          >
+            <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
+          </section>
+
           <section aria-label="Air quality now" className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-5 sm:p-6 lg:col-start-2 lg:row-start-1">
             <div className="grid grid-cols-2 gap-5">
               <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
@@ -113,14 +121,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </ul>
               </div>
             )}
-          </section>
-
-          {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
-          <section
-            aria-label="Regions"
-            className="relative overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:col-start-1 lg:row-span-2 lg:row-start-1"
-          >
-            <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
           </section>
 
           <OutdoorPlanner readings={latest} tomorrow={tomorrowPm25} className="lg:col-start-2 lg:row-start-2" />

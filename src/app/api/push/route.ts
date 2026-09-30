@@ -1,6 +1,5 @@
-import { confirmation } from "@/lib/alerts";
 import { logError } from "@/lib/http";
-import { deleteSubscription, parseEndpoint, parseSubscription, pushConfigured, saveSubscription, send } from "@/lib/push";
+import { deleteSubscription, parseEndpoint, parseSubscription, pushConfigured, saveSubscription } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +23,7 @@ async function readJson(request: Request): Promise<unknown | Response> {
   }
 }
 
-/** Subscribes this browser to haze alerts (or updates its choices), then sends a confirmation. */
+/** Subscribes this browser to haze alerts, or updates its choices. */
 export async function POST(request: Request) {
   if (!pushConfigured()) return fail(503, "alerts unavailable");
   const body = await readJson(request);
@@ -33,11 +32,7 @@ export async function POST(request: Request) {
   if (!sub) return fail(400, "invalid subscription");
   try {
     if (!(await saveSubscription(sub))) return fail(503, "alerts are full");
-    // Keep a subscription only once a notification has actually got through.
-    const delivered = await send(sub, confirmation(sub)).catch((err) => (logError("confirmation", err), false));
-    if (delivered) return Response.json({ ok: true });
-    await deleteSubscription(sub.endpoint);
-    return fail(502, "couldn't reach your browser's push service");
+    return Response.json({ ok: true });
   } catch (err) {
     logError("subscribe", err);
     return fail(502, "couldn't turn on alerts");

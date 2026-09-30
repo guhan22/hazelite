@@ -190,6 +190,7 @@ export function TrendChart({ series, points, thresholds = [], unit, ariaLabel, b
       </ul>
       <div
         ref={wrapRef}
+        data-no-swipe
         className="relative h-60 touch-pan-y rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--series-1)]"
         tabIndex={0}
         role="img"

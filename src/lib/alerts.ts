@@ -37,18 +37,6 @@ function notice(action: "alert" | "clear", sub: Tracked, pm25: number): Notice {
       : { title: `Haze easing · ${where}`, body: `1-hr PM2.5 is down to ${band.label} (${pm25} µg/m³), below your alert level.`, tag: `hazelite-${sub.region}` };
 }
 
-/** Confirms a new or changed subscription straight away, which also proves notifications get through. */
-export function confirmation(sub: Subscription): Notice {
-  const level = PM25_BANDS.find((b) => b.severity === sub.level)!;
-  return {
-    title: `Haze alerts on · ${titleCase(sub.region)}`,
-    body:
-      `We'll tell you when 1-hr PM2.5 reaches ${level.label} (${level.min}+ µg/m³), and when it clears.` +
-      (sub.updates ? " We'll also let you know when Hazelite is updated." : ""),
-    tag: "hazelite-confirm",
-  };
-}
-
 /** Checks every subscriber against the latest readings and sends what's due. Never throws. */
 export async function sendAlerts(): Promise<void> {
   if (!pushConfigured()) return;
