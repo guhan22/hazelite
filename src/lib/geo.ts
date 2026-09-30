@@ -1,7 +1,7 @@
 import { REGIONS, type Region } from "./schema";
 
 /** NEA's label location for each reporting region (from the API's regionMetadata). */
-export const REGION_LOCATIONS: Record<Region, { latitude: number; longitude: number }> = {
+const REGION_LOCATIONS: Record<Region, { latitude: number; longitude: number }> = {
   north: { latitude: 1.41803, longitude: 103.82 },
   south: { latitude: 1.29587, longitude: 103.82 },
   east: { latitude: 1.35735, longitude: 103.94 },

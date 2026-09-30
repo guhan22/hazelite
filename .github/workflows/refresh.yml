@@ -1,0 +1,22 @@
+# Hourly refresh of the production data. Vercel Hobby cron runs at most once a day, so this keeps
+# readings, forecasts, hotspots and news current even when nobody is visiting.
+name: Refresh data
+
+on:
+  schedule:
+    - cron: "10 * * * *" # NEA publishes on the hour; give it a few minutes
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/ingest
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 240 --retry 2 --retry-delay 30 \
+            -X POST -H "Authorization: Bearer $INGEST_TOKEN" https://hazelite.vercel.app/api/ingest

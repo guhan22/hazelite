@@ -4,6 +4,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const range = parseRange(new URL(request.url).searchParams.get("range"));
-  const [latest, series] = await Promise.all([getLatest(), getSeries(RANGES[range].hours)]);
+  const [latest, series] = await Promise.all([getLatest(), getSeries(RANGES[range].hours, RANGES[range].bucket)]);
   return Response.json({ range, latest, series });
 }

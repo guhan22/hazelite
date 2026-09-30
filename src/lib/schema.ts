@@ -1,5 +1,7 @@
 export const REGIONS = ["north", "south", "east", "west", "central"] as const;
 export type Region = (typeof REGIONS)[number];
+/** Order for charts and tables: centre first, then round the island. */
+export const DISPLAY_ORDER: Region[] = ["central", "north", "south", "east", "west"];
 
 /**
  * Every per-region measure NEA publishes, keyed by our field name: its `readings` column and

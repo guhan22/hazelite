@@ -1,9 +1,10 @@
 import { bandFor, PSI_BANDS } from "@/lib/bands";
 import { fmtDate } from "@/lib/format";
 import type { HistoryContext } from "@/lib/queries";
+import { DAY } from "@/lib/time";
 import { StatusLabel } from "./status";
 
-const YEAR_MS = 365 * 86_400_000;
+const YEAR_MS = 365 * DAY;
 
 /** How today's islandwide 24-hr PSI compares with the stored history. */
 export function HistoryCard({ psi, at, history }: { psi: number; at: Date; history: HistoryContext }) {

@@ -1,6 +1,6 @@
 # Hazelite
 
-A Singapore haze monitor. It pulls hourly 24-hr PSI, 1-hr PM2.5, and pollutant readings for NEA's five regions from [data.gov.sg](https://data.gov.sg), stores them in Postgres, and shows them on a Next.js dashboard.
+A Singapore haze monitor. It pulls hourly 24-hr PSI, 1-hr PM2.5, and pollutant readings for NEA's five regions from [data.gov.sg](https://data.gov.sg), stores them in Postgres, and shows them on a Next.js dashboard. Alongside them it shows NEA's weather forecasts, a model PM2.5 forecast ([Open-Meteo](https://open-meteo.com), CAMS), satellite fire hotspots in Sumatra and Borneo ([NASA FIRMS](https://firms.modaps.eosdis.nasa.gov)), and recent haze headlines (Google News).
 
 ## Quick start
 
@@ -33,13 +33,16 @@ Production runs on Vercel's free Hobby plan with a Neon free Postgres. Vercel fu
 
 A serverless host has no always-on process, so instead of the background poller used locally:
 - **Page visits** refresh the data after the response is sent (`after()`), at most once every 30 minutes (`src/lib/refresh.ts`).
-- **A daily Vercel Cron** (`vercel.json`) calls `/api/ingest` as a backstop for days with no visitors. Hobby cron jobs can run at most once a day.
+- **An hourly GitHub Actions workflow** (`.github/workflows/refresh.yml`) POSTs to `/api/ingest` with `INGEST_TOKEN`, so data stays current without visitors.
+- **A daily Vercel Cron** (`vercel.json`) calls `/api/ingest` as a backstop. Hobby cron jobs can run at most once a day.
+- **Supplementary feeds** (forecasts, hotspots, news) each refresh on their own schedule, from 30 minutes to 3 hours (`src/lib/feeds.ts`). A database claim makes sure only one instance fetches each feed.
 - **Migrations** run during the build (`npm run vercel-build`). Preview builds without `DATABASE_URL` skip them.
 
 Setup:
 1. **Neon.** Create a project in *AWS US West 2 (Oregon)* and set compute to 0.25 CU. Copy the **direct** connection string (pooling off: the migration lock needs a session) and use `sslmode=verify-full`.
-2. **Vercel.** Import the GitHub repo. Set `DATABASE_URL` and `CRON_SECRET` (for example `openssl rand -hex 32`) for Production. `DATA_GOV_SG_API_KEY` is optional.
-3. **Push to `main`.** Vercel builds, migrates and deploys. Pushes to other branches become previews.
+2. **Vercel.** Import the GitHub repo. Set `DATABASE_URL`, `CRON_SECRET` and `INGEST_TOKEN` (for example `openssl rand -hex 32`) for Production. `FIRMS_MAP_KEY` turns on the fire-hotspot card, and `DATA_GOV_SG_API_KEY` is optional.
+3. **GitHub.** Add the same `INGEST_TOKEN` as an Actions secret for the hourly refresh. GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab.
+4. **Push to `main`.** Vercel builds, migrates and deploys. Pushes to other branches become previews.
 
 To copy local history into an empty Neon database instead of re-fetching it:
 
@@ -61,7 +64,12 @@ vercel.json             function region and the daily cron
 src/instrumentation.ts  starts the background poller on long-running servers (not on Vercel)
 src/lib/refresh.ts      refresh-on-visit for serverless hosts
 src/lib/schema.ts       regions and the table of measures: API key ↔ DB column ↔ field
-src/lib/nea.ts          data.gov.sg client (PSI + PM2.5 endpoints)
+src/lib/nea.ts          data.gov.sg client (PSI, PM2.5, wind, weather forecasts)
+src/lib/feeds.ts        supplementary sources, each stored as a snapshot and refreshed on its own schedule
+src/lib/forecast.ts     Open-Meteo PM2.5 forecast
+src/lib/fires.ts        NASA FIRMS hotspots, counted per fire region
+src/lib/news.ts         Google News RSS headlines
+src/lib/dashboard.ts    loads everything the dashboard shows
 src/lib/ingest.ts       upserts into Postgres (one run at a time)
 src/lib/queries.ts      dashboard queries
 src/lib/summary.ts      derived figures (ranges, worst region, driving pollutant)
@@ -69,7 +77,8 @@ src/lib/wind.ts         station wind → islandwide and per-region averages
 src/lib/geo.ts          region locations, nearest region to a point
 src/lib/bands.ts        NEA PSI / PM2.5 bands, chart thresholds, health advisories
 src/app/page.tsx        dashboard
-src/components/         chart, region map, mascot, pollutant table, page shell
+src/components/         chart, region map, mascot, cards, pollutant table, page shell
+.github/workflows/      hourly production refresh
 src/assets/mascots/     mascot artwork
 ```
 
@@ -78,10 +87,13 @@ src/assets/mascots/     mascot artwork
 - **Region explorer.** Tiles for NEA's five regions. Selecting one updates the mascot and shows that area's wind: direction, speed, and a note when south-westerly winds can bring smoke from Sumatra. Wind comes from NEA's 17 weather stations, averaged for each region.
 - **Can I go out?** NEA's official 1-hr PM2.5 guide for the next hour, for the general public or vulnerable people. It uses your area, which you can pick or detect with "Use my location". Your choices are saved in the browser.
 - **How today compares.** Where today's PSI ranks among the past year's hours, when it was last this high, and the reading a year ago. It shows how complete the stored history is. Load the full year with `npm run backfill -- 365`.
-- **Trend chart** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). It follows the **Now / 24-hr PSI** toggle (1-hr PM2.5 by default), which is shared with the region explorer. Lines break where data is missing.
+- **Outlook.** NEA's forecast for the next 2 hours (flagging areas with haze, which also shows on the region tiles), the next 24 hours and the next 4 days. Each is paired with the model's PM2.5 forecast. "Can I go out?" also gives tomorrow's daytime guidance from it.
+- **Where the smoke comes from.** Daily fire hotspots in Sumatra and Borneo from NASA's VIIRS satellite (NOAA-20), compared with the previous days, and whether the current wind blows from either region.
+- **In the news.** The week's haze headlines, expanded when air quality isn't good.
+- **Trend chart** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). It follows the **Now / 24-hr PSI** toggle (1-hr PM2.5 by default), which is shared with the region explorer. The hourly PM2.5 chart continues with a dashed model forecast. Lines break where data is missing.
 - **Installable app (PWA).** It can be added to the Home Screen with its own icon and opens full-screen. On iPhone, use Safari's Share → **Add to Home Screen**; the header's **Install** button shows these steps. On Android and desktop Chrome/Edge, the **Install** button opens the browser's prompt. When installed, it opens offline with the last reading it saved and says it's offline. The service worker is `public/sw.js`, the manifest is `src/app/manifest.ts`, and the icons are in `public/icons/` and `src/app/`.
 - **Light/dark theme toggle.** It follows the OS setting until you choose, and remembers your choice.
 
-Click a region tile and the dragon-playground mascot's expression changes to match that region's 24-hr PSI band: happy, then calm, worried, masked, and finally masked and struggling. Click the same tile again to go back to the islandwide (worst-region) view.
+Click a region tile and the dragon mascot's expression changes to match that region's band for the metric shown (1-hr PM2.5 or 24-hr PSI): happy, then calm, worried, masked, and finally masked and struggling. Click the same tile again to go back to the islandwide (worst-region) view. Tap the dragon for tips, or press play to replay the last 72 hours.
 
 Unauthenticated data.gov.sg requests are rate-limited. For large backfills, set `DATA_GOV_SG_API_KEY`.

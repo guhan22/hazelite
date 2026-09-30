@@ -41,25 +41,17 @@ export type Profile = "general" | "vulnerable";
  * Vulnerable = the elderly, pregnant women, children, and people with chronic lung or heart disease.
  * Source: NEA, "How to plan your outdoor activities during haze" (haze.gov.sg).
  */
-export function pm25GuideFor(severity: Severity, profile: Profile): string {
+export function pm25GuideFor(severity: Severity, profile: Profile, when = "for the next hour"): string {
   const guide: Partial<Record<Severity, Record<Profile, string>>> = {
-    unhealthy: {
-      general: "Reduce strenuous outdoor activity for the next hour",
-      vulnerable: "Avoid strenuous outdoor activity for the next hour",
-    },
-    "very-unhealthy": {
-      general: "Avoid strenuous outdoor activity for the next hour",
-      vulnerable: "Avoid all outdoor activity for the next hour",
-    },
-    hazardous: {
-      general: "Minimise all outdoor activity for the next hour",
-      vulnerable: "Avoid all outdoor activity for the next hour",
-    },
+    unhealthy: { general: "Reduce strenuous outdoor activity", vulnerable: "Avoid strenuous outdoor activity" },
+    "very-unhealthy": { general: "Avoid strenuous outdoor activity", vulnerable: "Avoid all outdoor activity" },
+    hazardous: { general: "Minimise all outdoor activity", vulnerable: "Avoid all outdoor activity" },
   };
-  return guide[severity]?.[profile] ?? "Continue with normal activities";
+  const advice = guide[severity]?.[profile];
+  return advice ? [advice, when].filter(Boolean).join(" ") : "Continue with normal activities";
 }
 
-export interface Advisory {
+interface Advisory {
   group: string;
   advice: string;
 }

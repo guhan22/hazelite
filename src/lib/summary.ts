@@ -28,3 +28,10 @@ export function drivingPollutant(r: LatestReading) {
   const [name, key] = SUB_INDICES.reduce((a, b) => ((r[b[1]] ?? -1) > (r[a[1]] ?? -1) ? b : a));
   return r[key] == null ? "–" : `${name} (sub-index ${r[key]})`;
 }
+
+/** The most frequent value (first seen wins a tie), or undefined for an empty list. */
+export function mostCommon<T>(values: T[]): T | undefined {
+  const counts = new Map<T, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  return worstBy([...counts.keys()], (v) => counts.get(v)!);
+}

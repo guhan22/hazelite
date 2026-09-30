@@ -25,6 +25,7 @@ interface Props {
   /** Hourly points for the replay, oldest first. */
   replay: SeriesPoint[];
   wind: { islandwide: Wind | null; byRegion: Partial<Record<Region, Wind>> };
+  hazeSoon?: Region[];
 }
 
 const frameReadings = (p: SeriesPoint): TileReading[] =>
@@ -34,7 +35,7 @@ const frameReadings = (p: SeriesPoint): TileReading[] =>
  * The interactive heart of the dashboard: region tiles, a metric toggle, a 72-hour replay, and a
  * mascot whose mood follows the area in focus (the selected region, or the worst one).
  */
-export function RegionExplorer({ readings, replay, wind }: Props) {
+export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
   const [selected, setSelected] = useState<Region | null>(null);
   const [metricId] = useMetric();
   const [frame, setFrame] = useState<number | null>(null);
@@ -92,7 +93,13 @@ export function RegionExplorer({ readings, replay, wind }: Props) {
         </div>
       </div>
 
-      <RegionMap readings={shown} metric={metric} selected={selected} onSelect={(r) => setSelected((cur) => (cur === r ? null : r))} />
+      <RegionMap
+        readings={shown}
+        metric={metric}
+        selected={selected}
+        onSelect={(r) => setSelected((cur) => (cur === r ? null : r))}
+        hazeSoon={frame == null ? hazeSoon : undefined}
+      />
 
       <TimeMachine times={replay.map((p) => p.t)} index={frame} onChange={onFrame} />
 

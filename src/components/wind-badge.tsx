@@ -1,8 +1,10 @@
-import { fromSumatraQuadrant, type Wind } from "@/lib/wind";
+import { upwindArea } from "@/lib/fires";
+import type { Wind } from "@/lib/wind";
 
 /** Wind direction arrow (pointing downwind) with compass and speed. */
 export function WindBadge({ wind, hazy }: { wind: Wind | null | undefined; hazy: boolean }) {
   if (!wind) return <span className="text-xs text-muted">Wind: no recent data</span>;
+  const upwind = upwindArea(wind.fromDeg);
   return (
     <span className="flex flex-col gap-0.5 text-xs text-ink-2">
       <span className="inline-flex items-center gap-1.5">
@@ -19,9 +21,7 @@ export function WindBadge({ wind, hazy }: { wind: Wind | null | undefined; hazy:
         </svg>
         Wind from the {wind.compass} · {wind.speedKmh} km/h
       </span>
-      {hazy && fromSumatraQuadrant(wind) && (
-        <span className="text-muted">South-westerly winds can carry smoke from fires in Sumatra.</span>
-      )}
+      {hazy && upwind && <span className="text-muted">Winds from the {wind.compass} can carry smoke from fires in {upwind.name}.</span>}
     </span>
   );
 }

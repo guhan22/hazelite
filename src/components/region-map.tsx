@@ -17,11 +17,14 @@ export function RegionMap({
   metric,
   selected,
   onSelect,
+  hazeSoon = [],
 }: {
   readings: TileReading[];
   metric: Metric;
   selected: Region | null;
   onSelect: (region: Region) => void;
+  /** Regions where NEA's 2-hour forecast has haze in at least one area. */
+  hazeSoon?: Region[];
 }) {
   const other = metric.id === "psi" ? METRICS.pm25 : METRICS.psi;
   return (
@@ -46,7 +49,14 @@ export function RegionMap({
               borderColor: `color-mix(in srgb, ${tint} 45%, transparent)`,
             }}
           >
-            <span className="text-xs font-medium capitalize text-ink-2">{r.region}</span>
+            <span className="flex items-start justify-between gap-1 text-xs font-medium capitalize text-ink-2">
+              {r.region}
+              {hazeSoon.includes(r.region) && (
+                <span className="rounded-full bg-surface px-1.5 text-[0.625rem] font-normal normal-case text-muted" title="NEA forecasts haze here in the next 2 hours">
+                  Hazy next 2 hrs
+                </span>
+              )}
+            </span>
             <span className="text-2xl font-semibold leading-tight sm:text-3xl">
               {value ?? "–"}
               {metric.unit && <span className="ml-0.5 text-[0.625rem] font-normal text-muted">{metric.unit}</span>}

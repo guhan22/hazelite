@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { ingestRecent } from "@/lib/ingest";
+import { refreshAll } from "@/lib/refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +20,13 @@ function authorized(request: Request) {
 async function handle(request: Request) {
   if (!authorized(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
   try {
-    return Response.json({ rows: await ingestRecent() });
+    return Response.json({ rows: await refreshAll() });
   } catch (err) {
     console.error("[hazelite] ingest via API failed:", err);
     return Response.json({ error: "ingest failed" }, { status: 502 });
   }
 }
 
-/** Triggers an immediate refresh from NEA. Vercel Cron calls GET; other schedulers can POST. */
+/** Triggers an immediate refresh. Vercel Cron calls GET; other schedulers (GitHub Actions) POST. */
 export const GET = handle;
 export const POST = handle;

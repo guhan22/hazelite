@@ -2,6 +2,7 @@
 
 import { createContext, use, useState, type ReactNode } from "react";
 import { METRICS, type MetricId } from "@/lib/metrics";
+import { pill } from "./pill";
 
 const MetricContext = createContext<readonly [MetricId, (id: MetricId) => void]>(["pm25", () => {}]);
 
@@ -23,9 +24,7 @@ export function MetricToggle() {
           type="button"
           aria-pressed={m.id === metricId}
           onClick={() => setMetricId(m.id)}
-          className={`rounded-full border px-3 py-1 transition-colors ${
-            m.id === metricId ? "border-ink bg-ink text-page" : "border-border text-ink-2 hover:bg-grid"
-          }`}
+          className={pill(m.id === metricId)}
         >
           {m.id === "pm25" ? `${m.label} · ${m.name}` : m.label}
         </button>

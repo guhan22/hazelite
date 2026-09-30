@@ -1,6 +1,8 @@
 import { pool } from "./db";
-import { fetchReadings, fetchWind, sgtDate, type ReadingRow } from "./nea";
+import { errorMessage, logError } from "./http";
+import { fetchReadings, fetchWind, type ReadingRow } from "./nea";
 import { MEASURE_KEYS, MEASURES } from "./schema";
+import { sgtDate } from "./time";
 
 // Column names come from the static MEASURES table, never from input, so interpolating them is safe.
 const COLUMNS = ["region", "observed_at", ...MEASURE_KEYS.map((k) => MEASURES[k].column), "source_updated_at"];
@@ -22,7 +24,7 @@ async function upsert(rows: ReadingRow[]): Promise<number> {
 }
 
 /** Fetches and stores the given SGT dates. Records the run in ingest_runs. */
-export async function ingestDates(dates: string[]): Promise<number> {
+async function ingestDates(dates: string[]): Promise<number> {
   const { rows } = await pool.query<{ id: string }>("INSERT INTO ingest_runs (dates) VALUES ($1) RETURNING id", [dates]);
   let total = 0;
   let error: string | null = null;
@@ -30,7 +32,7 @@ export async function ingestDates(dates: string[]): Promise<number> {
     for (const date of dates) total += await upsert(await fetchReadings(date));
     return total;
   } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
+    error = errorMessage(err);
     throw err;
   } finally {
     await pool.query("UPDATE ingest_runs SET finished_at = now(), rows_upserted = $2, error = $3 WHERE id = $1", [
@@ -42,7 +44,7 @@ export async function ingestDates(dates: string[]): Promise<number> {
 }
 
 /** Stores the latest reading from every wind station. */
-export async function ingestWind(): Promise<number> {
+async function ingestWind(): Promise<number> {
   const rows = await fetchWind();
   if (rows.length === 0) return 0;
   const client = await pool.connect();
@@ -80,7 +82,7 @@ let inFlight: Promise<number> | null = null;
 export function ingestRecent(): Promise<number> {
   inFlight ??= Promise.all([
     ingestDates([sgtDate(1), sgtDate(0)]),
-    ingestWind().catch((err) => console.error("[hazelite] wind ingest failed:", err instanceof Error ? err.message : err)),
+    ingestWind().catch((err) => logError("wind ingest", err)),
   ])
     .then(([rows]) => rows)
     .finally(() => (inFlight = null));

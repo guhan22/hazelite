@@ -1,64 +1,37 @@
-import Link from "next/link";
 import { after } from "next/server";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { FiresCard } from "@/components/fires-card";
 import { HistoryCard } from "@/components/history-card";
+import { MetricProvider } from "@/components/metric-toggle";
+import { NewsCard } from "@/components/news-card";
 import { OutdoorPlanner } from "@/components/outdoor-planner";
-import { ByMetric, MetricProvider, MetricToggle } from "@/components/metric-toggle";
+import { OutlookCard } from "@/components/outlook-card";
 import { PollutantTable } from "@/components/pollutant-table";
 import { RegionExplorer } from "@/components/region-explorer";
 import { Notice, Shell } from "@/components/shell";
 import { StatusLabel } from "@/components/status";
-import { TrendChart, type ChartSeries } from "@/components/trend-chart";
-import { advisoryFor, bandFor, PM25_BANDS, PSI_BANDS, thresholdsFor, type Band } from "@/lib/bands";
+import { TrendSection } from "@/components/trend-section";
+import { advisoryFor, bandFor, PM25_BANDS, PSI_BANDS, type Band } from "@/lib/bands";
+import { getDashboard } from "@/lib/dashboard";
+import { forecastMax } from "@/lib/forecast";
 import { titleCase } from "@/lib/format";
-import type { MetricId } from "@/lib/metrics";
-import {
-  getHistoryContext,
-  getLatest,
-  getLatestWind,
-  getNationalPsiAt,
-  getSeries,
-  lastIngestFailed,
-  parseRange,
-  RANGES,
-  type LatestReading,
-} from "@/lib/queries";
+import { isHazy } from "@/lib/nea";
+import { parseRange } from "@/lib/queries";
 import { refreshIfStale } from "@/lib/refresh";
-import { REGIONS, type Region } from "@/lib/schema";
+import { DISPLAY_ORDER, REGIONS, type Region } from "@/lib/schema";
 import { formatRange, range, worstRegion } from "@/lib/summary";
+import { HOUR, sgtDayStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-const REGION_ORDER: Region[] = ["central", "north", "south", "east", "west"];
-const SERIES: ChartSeries[] = REGION_ORDER.map((r, i) => ({ key: r, label: titleCase(r), color: `var(--series-${i + 1})` }));
-
-// One chart, following the Now / 24-hr PSI toggle.
-const CHARTS: Record<MetricId, { title: string; subtitle: string; unit: string; bands: Band[] }> = {
-  pm25: { title: "1-hr PM2.5 by region", subtitle: "Hourly fine particulate concentration, µg/m³", unit: "µg/m³", bands: PM25_BANDS },
-  psi: { title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS },
-};
-const REPLAY_HOURS = 72;
-
 export default async function Home({ searchParams }: PageProps<"/">) {
   const rangeKey = parseRange((await searchParams).range);
-  // Once the response is sent, pull fresh readings from NEA if the data has gone stale.
+  // Once the response is sent, pull fresh data if it has gone stale.
   after(refreshIfStale);
-  const { hours, bucket, label: rangeLabel } = RANGES[rangeKey];
 
-  let latest: LatestReading[], series: Awaited<ReturnType<typeof getSeries>>, refreshFailed: boolean;
-  let wind: Awaited<ReturnType<typeof getLatestWind>>, replay: typeof series;
-  // The replay always covers the last 72 hours, hourly; reuse the chart series when it's the same.
-  const sameAsReplay = hours === REPLAY_HOURS && bucket === "hour";
+  let data: Awaited<ReturnType<typeof getDashboard>>;
   try {
-    [latest, series, refreshFailed, wind, replay] = await Promise.all([
-      getLatest(),
-      getSeries(hours, bucket),
-      lastIngestFailed(),
-      // Wind is a nice-to-have: without it the dashboard still renders.
-      getLatestWind().catch(() => ({ islandwide: null, byRegion: {} })),
-      sameAsReplay ? Promise.resolve([]) : getSeries(REPLAY_HOURS, "hour"),
-    ]);
-    if (sameAsReplay) replay = series;
+    data = await getDashboard(rangeKey);
   } catch {
     return (
       <Notice title="Can't reach the database.">
@@ -67,6 +40,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </Notice>
     );
   }
+  const { latest, series, refreshFailed, wind, replay, feeds, psiDayAgo, history } = data;
 
   if (latest.length === 0) {
     return (
@@ -82,39 +56,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const pm25 = range(latest.map((r) => r.pm25_1h));
   const psiBand = bandFor(PSI_BANDS, psi?.max);
   const pmBand = bandFor(PM25_BANDS, pm25?.max);
-  const [psiDayAgo, history] = await Promise.all([
-    getNationalPsiAt(observedAt, 24),
-    psi ? getHistoryContext(observedAt, psi.max) : null,
-  ]);
   const delta = psi && psiDayAgo != null ? psi.max - psiDayAgo : null;
   const worst = worstRegion(latest)!;
   const byRegion = new Map(latest.map((r) => [r.region, r]));
   const inOrder = (order: readonly Region[]) => order.flatMap((r) => byRegion.get(r) ?? []);
-  const chart = (field: MetricId) => {
-    const c = CHARTS[field];
-    return (
-      <>
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">{c.title}</h2>
-            <p className="text-xs text-muted">
-              {c.subtitle}
-              {bucket === "day" && " · daily maximum"}
-            </p>
-          </div>
-          <MetricToggle />
-        </div>
-        <TrendChart
-          series={SERIES}
-          points={series.map((p) => ({ t: p.t, v: REGION_ORDER.map((r) => p.values[r]?.[field] ?? null) }))}
-          unit={c.unit}
-          ariaLabel={`${c.title} over the last ${rangeLabel}`}
-          bucket={bucket}
-          thresholds={thresholdsFor(c.bands)}
-        />
-      </>
-    );
-  };
+
+  const { neaForecast, pm25Forecast, hotspots, news } = feeds;
+  const hazeSoon = [...new Set(neaForecast?.twoHour?.areas.filter((a) => isHazy(a.forecast)).map((a) => a.region))];
+  const tomorrow = sgtDayStart(observedAt.getTime(), 1);
+  const tomorrowPm25 = forecastMax(pm25Forecast, tomorrow + 7 * HOUR, tomorrow + 19 * HOUR);
+  const elevated = [psiBand, pmBand].some((b) => b && b.severity !== "good");
 
   return (
     <Shell observedAt={observedAt} refreshFailed={refreshFailed}>
@@ -122,7 +73,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       <MetricProvider>
         {/* relative + overflow-hidden: the explorer's haze overlay fills and clips to this card. */}
         <section className="relative grid gap-6 overflow-hidden rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-[minmax(0,25rem)_1fr]">
-          <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} />
+          <RegionExplorer readings={inOrder(REGIONS)} replay={replay} wind={wind} hazeSoon={hazeSoon} />
 
           <div className="flex flex-col gap-5">
             <div className="grid gap-5 sm:grid-cols-2">
@@ -161,30 +112,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
         </section>
 
-        <OutdoorPlanner readings={latest} />
+        <OutdoorPlanner readings={latest} tomorrow={tomorrowPm25} />
 
-        <nav className="mt-8 flex flex-wrap items-center gap-2" aria-label="Time range">
-          {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((k) => (
-            <Link
-              key={k}
-              href={`/?range=${k}`}
-              scroll={false}
-              aria-current={k === rangeKey ? "page" : undefined}
-              className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                k === rangeKey ? "border-ink bg-ink text-page" : "border-border bg-surface text-ink-2 hover:bg-grid"
-              }`}
-            >
-              {RANGES[k].label}
-            </Link>
-          ))}
-        </nav>
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
+          <OutlookCard nea={neaForecast} model={pm25Forecast} now={observedAt.getTime()} />
+          <FiresCard hotspots={hotspots} wind={wind.islandwide} />
+        </div>
 
-        <section className="mt-4 min-w-0 rounded-xl border border-border bg-surface p-5">
-          <ByMetric views={{ pm25: chart("pm25"), psi: chart("psi") }} />
-        </section>
+        <TrendSection series={series} range={rangeKey} forecast={pm25Forecast} />
       </MetricProvider>
 
-      <PollutantTable readings={inOrder(REGION_ORDER)} observedAt={observedAt} />
+      <NewsCard items={news} open={elevated} />
+      <PollutantTable readings={inOrder(DISPLAY_ORDER)} observedAt={observedAt} />
     </Shell>
   );
 }
@@ -202,13 +141,12 @@ function Headline({ title, value, unit, band }: { title: string; value: string; 
   );
 }
 
-function Stat({ label, value, unit, children }: { label: string; value: string; unit?: string; children: React.ReactNode }) {
+function Stat({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-border px-3 py-2.5">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-0.5">
         <span className="text-2xl font-semibold">{value}</span>
-        {unit && <span className="ml-1 text-xs text-muted">{unit}</span>}
         <div className="mt-1 text-xs text-ink-2">{children}</div>
       </dd>
     </div>

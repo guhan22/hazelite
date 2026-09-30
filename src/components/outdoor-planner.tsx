@@ -7,6 +7,8 @@ import { nearestRegion } from "@/lib/geo";
 import type { LatestReading } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { useStoredChoice } from "@/lib/use-stored-choice";
+import { Card } from "./card";
+import { pill } from "./pill";
 import { StatusIcon } from "./status";
 
 const PROFILES: { id: Profile; label: string }[] = [
@@ -17,11 +19,15 @@ const PROFILES: { id: Profile; label: string }[] = [
 // Rough bounding box for mainland Singapore and its nearby islands.
 const inSingapore = (lat: number, lon: number) => lat > 1.15 && lat < 1.48 && lon > 103.6 && lon < 104.1;
 
-const segment = (active: boolean) =>
-  `rounded-full border px-3 py-1 transition-colors ${active ? "border-ink bg-ink text-page" : "border-border text-ink-2 hover:bg-grid"}`;
-
 /** "Can I go out?": NEA's next-hour activity guide for the viewer's area and health profile. */
-export function OutdoorPlanner({ readings }: { readings: Pick<LatestReading, "region" | "pm25_1h">[] }) {
+export function OutdoorPlanner({
+  readings,
+  tomorrow,
+}: {
+  readings: Pick<LatestReading, "region" | "pm25_1h">[];
+  /** The model's highest PM2.5 for tomorrow's daytime, islandwide. */
+  tomorrow: number | null;
+}) {
   const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", ["general", "vulnerable"], "general");
   const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
   const [locating, setLocating] = useState<string | null>(null);
@@ -42,18 +48,14 @@ export function OutdoorPlanner({ readings }: { readings: Pick<LatestReading, "re
 
   const pm25 = readings.find((r) => r.region === region)?.pm25_1h ?? null;
   const band = bandFor(PM25_BANDS, pm25);
+  const tomorrowBand = bandFor(PM25_BANDS, tomorrow);
 
   return (
-    <section className="mt-6 rounded-xl border border-border bg-surface p-5" aria-labelledby="planner-title">
-      <h2 id="planner-title" className="text-base font-semibold">
-        Can I go out?
-      </h2>
-      <p className="text-xs text-muted">NEA&apos;s guide for the next hour, based on the latest 1-hr PM2.5 reading</p>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+    <Card title="Can I go out?" subtitle="NEA's guide for the next hour, based on the latest 1-hr PM2.5 reading" className="mt-6">
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
         <div className="flex gap-1.5" role="group" aria-label="Health profile">
           {PROFILES.map((p) => (
-            <button key={p.id} type="button" aria-pressed={profile === p.id} onClick={() => setProfile(p.id)} className={segment(profile === p.id)}>
+            <button key={p.id} type="button" aria-pressed={profile === p.id} onClick={() => setProfile(p.id)} className={pill(profile === p.id)}>
               {p.label}
             </button>
           ))}
@@ -72,7 +74,7 @@ export function OutdoorPlanner({ readings }: { readings: Pick<LatestReading, "re
             ))}
           </select>
         </label>
-        <button type="button" onClick={locate} className={segment(false)}>
+        <button type="button" onClick={locate} className={pill(false)}>
           Use my location
         </button>
       </div>
@@ -92,11 +94,23 @@ export function OutdoorPlanner({ readings }: { readings: Pick<LatestReading, "re
         </div>
       </div>
 
+      {tomorrowBand && (
+        <div className="mt-2 flex items-start gap-3 rounded-lg border border-dashed border-border px-4 py-3">
+          <StatusIcon severity={tomorrowBand.severity} size="1.25rem" />
+          <p className="text-sm">
+            <span className="font-medium">Tomorrow, 7 am–7 pm:</span> {pm25GuideFor(tomorrowBand.severity, profile, "")}
+            <span className="block text-xs text-ink-2">
+              Model forecast: PM2.5 up to {tomorrow} µg/m³ · {tomorrowBand.label}
+            </span>
+          </p>
+        </div>
+      )}
+
       <p className="mt-3 text-xs text-muted">
         Vulnerable means the elderly, pregnant women, children, and people with chronic lung or heart disease. This guide
-        isn&apos;t prescriptive; if you feel unwell, seek medical attention. For tomorrow&apos;s plans, use the 24-hr PSI health
-        advisory above.
+        isn&apos;t prescriptive; if you feel unwell, seek medical attention. Tomorrow&apos;s line is a computer-model forecast for
+        Singapore as a whole, so check again in the morning.
       </p>
-    </section>
+    </Card>
   );
 }

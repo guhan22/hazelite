@@ -24,7 +24,7 @@ const toRad = (d: number) => (d * Math.PI) / 180;
  * Averages station winds. Direction is a vector mean (so 350° and 10° average to 0°, not 180°);
  * speed is the plain mean, which is what people feel.
  */
-export function meanWind(stations: StationWind[]): Wind | null {
+function meanWind(stations: StationWind[]): Wind | null {
   const valid = stations.filter((s) => s.directionDeg != null && s.speedKnots != null);
   if (valid.length === 0) return null;
   let x = 0;
@@ -53,9 +53,3 @@ export function summarizeWind(stations: StationWind[]) {
   }
   return { islandwide: meanWind(stations), byRegion };
 }
-
-/**
- * Winds from roughly south to west (the south-west monsoon, typically June–October) are what carry
- * smoke from fires in Sumatra to Singapore.
- */
-export const fromSumatraQuadrant = (w: Wind) => w.fromDeg >= 180 && w.fromDeg <= 270;

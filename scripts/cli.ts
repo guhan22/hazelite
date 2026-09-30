@@ -1,6 +1,7 @@
 // Usage: tsx scripts/cli.ts migrate | ingest | backfill [days]
 import { migrate, pool } from "../src/lib/db";
-import { backfill, ingestRecent } from "../src/lib/ingest";
+import { backfill } from "../src/lib/ingest";
+import { refreshAll } from "../src/lib/refresh";
 
 async function main() {
   const [cmd, arg] = process.argv.slice(2);
@@ -17,7 +18,7 @@ async function main() {
     }
     case "ingest":
       await migrate();
-      console.log(`Upserted ${await ingestRecent()} rows.`);
+      console.log(`Upserted ${await refreshAll()} rows.`);
       break;
     case "backfill": {
       const days = Number(arg ?? 30);

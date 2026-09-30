@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { fmtPoint, sgtFormat } from "@/lib/format";
 import type { Bucket } from "@/lib/queries";
+import { DAY, HOUR, SGT_OFFSET } from "@/lib/time";
 
 export interface ChartSeries {
   key: string;
   label: string;
   color: string;
+  /** Dashed line, for projected values (a forecast) rather than readings. */
+  dashed?: boolean;
 }
 
 export interface ChartPoint {
@@ -16,7 +19,7 @@ export interface ChartPoint {
   v: (number | null)[];
 }
 
-export interface Threshold {
+interface Threshold {
   value: number;
   /** Name of the band that starts above `value`; drawn just above the line. */
   label: string;
@@ -35,9 +38,6 @@ interface Props {
 const M = { top: 12, right: 12, bottom: 28, left: 36 };
 /** Extra right gutter that holds the band labels, clear of the lines. */
 const BAND_GUTTER = 84;
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
-const SGT_OFFSET = 8 * HOUR;
 
 const fmtHour = sgtFormat({ hour: "numeric" });
 const fmtDay = sgtFormat({ day: "numeric", month: "short" });
@@ -71,6 +71,13 @@ function xTicks(t0: number, t1: number): { ticks: number[]; monthly: boolean; da
   for (let t = Math.ceil((t0 + SGT_OFFSET) / step) * step - SGT_OFFSET; t <= t1; t += step) ticks.push(t);
   return { ticks, monthly: false, daily: step >= DAY };
 }
+
+/** A short line sample in the series' colour and style, for the legend and tooltip. */
+const Swatch = ({ series: s }: { series: ChartSeries }) => (
+  <svg width="0.875rem" height="0.25rem" viewBox="0 0 14 4" aria-hidden className="shrink-0">
+    <line x1="1" x2="13" y1="2" y2="2" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeDasharray={s.dashed ? "3 3" : undefined} />
+  </svg>
+);
 
 export function TrendChart({ series, points, thresholds = [], unit, ariaLabel, bucket = "hour" }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -176,7 +183,7 @@ export function TrendChart({ series, points, thresholds = [], unit, ariaLabel, b
       <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2" aria-label="Legend">
         {series.map((s) => (
           <li key={s.key} className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-3.5 rounded-full" style={{ background: s.color }} />
+            <Swatch series={s} />
             {s.label}
           </li>
         ))}
@@ -217,7 +224,16 @@ export function TrendChart({ series, points, thresholds = [], unit, ariaLabel, b
             </text>
           ))}
           {geo.paths.map((d, i) => (
-            <path key={series[i].key} d={d} fill="none" stroke={series[i].color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            <path
+              key={series[i].key}
+              d={d}
+              fill="none"
+              stroke={series[i].color}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeDasharray={series[i].dashed ? "5 5" : undefined}
+            />
           ))}
           {activePoint && (
             <g>
@@ -238,10 +254,11 @@ export function TrendChart({ series, points, thresholds = [], unit, ariaLabel, b
             <div className="mb-1.5 text-muted">{fmtPoint(activePoint.t, bucket)}</div>
             {series
               .map((s, i) => ({ s, v: activePoint.v[i] }))
+              .filter(({ v }) => v != null)
               .sort((a, b) => (b.v ?? -1) - (a.v ?? -1))
               .map(({ s, v }) => (
                 <div key={s.key} className="flex items-center gap-2 py-0.5">
-                  <span className="inline-block h-0.5 w-3 rounded-full" style={{ background: s.color }} />
+                  <Swatch series={s} />
                   <span className="tabular font-semibold text-ink">{v ?? "–"}</span>
                   <span className="text-ink-2">{s.label}</span>
                 </div>

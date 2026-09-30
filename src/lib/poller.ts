@@ -1,14 +1,15 @@
 import { migrate } from "./db";
-import { backfill, ingestRecent, isEmpty } from "./ingest";
+import { logError } from "./http";
+import { backfill, isEmpty } from "./ingest";
+import { refreshAll } from "./refresh";
 
 const globalForPoller = globalThis as unknown as { hazeStarted?: boolean };
 
 async function tick() {
   try {
-    const n = await ingestRecent();
-    console.log(`[hazelite] ingested ${n} rows`);
+    console.log(`[hazelite] ingested ${await refreshAll()} rows`);
   } catch (err) {
-    console.error("[hazelite] ingest failed:", err instanceof Error ? err.message : err);
+    logError("ingest", err);
   }
 }
 
@@ -33,7 +34,7 @@ export function startPoller() {
         await backfill(days);
       }
     } catch (err) {
-      console.error("[hazelite] startup failed:", err instanceof Error ? err.message : err);
+      logError("startup", err);
     }
     if (minutes > 0) {
       setInterval(tick, minutes * 60_000);
