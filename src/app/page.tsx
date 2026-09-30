@@ -2,7 +2,6 @@ import { after } from "next/server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Card } from "@/components/card";
 import { FiresCard } from "@/components/fires-card";
-import { HistoryCard } from "@/components/history-card";
 import { MetricProvider } from "@/components/metric-toggle";
 import { NewsCard } from "@/components/news-card";
 import { OutdoorPlanner } from "@/components/outdoor-planner";
@@ -47,7 +46,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </Notice>
     );
   }
-  const { latest, series, refreshFailed, wind, replay, feeds, psiDayAgo, history } = data;
+  const { latest, series, refreshFailed, wind, replay, feeds, psiDayAgo } = data;
 
   if (latest.length === 0) {
     return (
@@ -148,7 +147,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       content: (
         <div key="trends" className="space-y-6">
           <TrendSection series={series} range={rangeKey} forecast={pm25Forecast} hrefFor={(k) => `/?tab=trends&range=${k}`} />
-          {psi && history && <HistoryCard psi={psi.max} at={observedAt} history={history} />}
           <PollutantTable readings={inOrder(DISPLAY_ORDER)} observedAt={observedAt} />
         </div>
       ),

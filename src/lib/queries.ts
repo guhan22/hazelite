@@ -89,38 +89,3 @@ export async function getLatestWind() {
   );
   return summarizeWind(rows);
 }
-
-export interface HistoryContext {
-  /** Share of hours in the past year with a lower islandwide 24-hr PSI, 0–100. */
-  percentile: number | null;
-  /** Most recent hour, before the past week, when islandwide PSI was at least this high. */
-  lastThisHigh: Date | null;
-  /** Earliest stored reading: how far back history goes. */
-  recordsSince: Date | null;
-  /** Islandwide 24-hr PSI at the same hour a year earlier. */
-  yearAgo: number | null;
-  /** Share of hours actually stored in the comparison window, 0–100. Gaps (e.g. mid-backfill) lower it. */
-  coverage: number | null;
-}
-
-/** How the islandwide 24-hr PSI `psi` at `at` compares with stored history. */
-export async function getHistoryContext(at: Date, psi: number): Promise<HistoryContext> {
-  const { rows } = await pool.query<HistoryContext>(
-    `WITH national AS (
-       SELECT observed_at, max(psi_24h) AS psi FROM readings
-       WHERE psi_24h IS NOT NULL AND observed_at <= $1
-       GROUP BY observed_at
-     )
-     SELECT
-       (SELECT round(100.0 * count(*) FILTER (WHERE psi < $2) / nullif(count(*), 0))::int
-          FROM national WHERE observed_at > $1::timestamptz - interval '1 year') AS percentile,
-       (SELECT max(observed_at) FROM national
-          WHERE psi >= $2 AND observed_at < $1::timestamptz - interval '7 days') AS "lastThisHigh",
-       (SELECT min(observed_at) FROM national) AS "recordsSince",
-       (SELECT psi FROM national WHERE observed_at = $1::timestamptz - interval '1 year') AS "yearAgo",
-       (SELECT round(100.0 * count(*) / (extract(epoch FROM $1::timestamptz - min(observed_at)) / 3600 + 1))::int
-          FROM national WHERE observed_at > $1::timestamptz - interval '1 year') AS coverage`,
-    [at, psi],
-  );
-  return rows[0];
-}

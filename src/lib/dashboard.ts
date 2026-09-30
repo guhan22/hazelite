@@ -1,7 +1,7 @@
 import { getFeeds, type Feeds } from "./feeds";
 import { logError } from "./http";
+import { aboutSingaporeHaze } from "./news";
 import {
-  getHistoryContext,
   getLatest,
   getLatestWind,
   getNationalPsiAt,
@@ -10,14 +10,13 @@ import {
   RANGES,
   type RangeKey,
 } from "./queries";
-import { range } from "./summary";
 
 const REPLAY_HOURS = 72;
 const NO_FEEDS: Feeds = { neaForecast: null, pm25Forecast: null, hotspots: null, news: null };
 const NO_WIND = { islandwide: null, byRegion: {} };
 
 /**
- * Everything the dashboard shows, in two rounds of parallel queries. Throws if the database is
+ * Everything the dashboard shows, in two rounds of queries. Throws if the database is
  * unreachable; wind and the supplementary feeds degrade to empty instead, since the page works without them.
  */
 export async function getDashboard(rangeKey: RangeKey) {
@@ -34,10 +33,9 @@ export async function getDashboard(rangeKey: RangeKey) {
   ]);
 
   const observedAt = latest[0]?.observedAt;
-  const psiMax = range(latest.map((r) => r.psi24h))?.max;
-  const [psiDayAgo, history] = observedAt
-    ? await Promise.all([getNationalPsiAt(observedAt, 24), psiMax != null ? getHistoryContext(observedAt, psiMax) : null])
-    : [null, null];
+  const psiDayAgo = observedAt ? await getNationalPsiAt(observedAt, 24) : null;
 
-  return { latest, series, refreshFailed, wind, replay: replay ?? series, feeds, psiDayAgo, history };
+  // Headlines stored before the Singapore-only rule are filtered on the way out too.
+  const news = feeds.news?.filter(aboutSingaporeHaze) ?? null;
+  return { latest, series, refreshFailed, wind, replay: replay ?? series, feeds: { ...feeds, news }, psiDayAgo };
 }

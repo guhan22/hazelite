@@ -9,8 +9,15 @@ export interface NewsItem {
 
 const FEED = "https://news.google.com/rss/search?q=haze+singapore+when:7d&hl=en-SG&gl=SG&ceid=SG:en";
 const MAX_ITEMS = 8;
-// Google matches "haze" anywhere in the article; keep only headlines that are about air quality.
-const RELEVANT = /\b(haze|hazy|smog|smoke|psi|pm2\.?5|air quality|hotspots?|(wild|forest )?fires?)\b/i;
+// Google matches "haze" anywhere in the article, so headlines must themselves be about air quality...
+const AIR = /\b(haze|hazy|smog|smoke|psi|pm2\.?5|air quality|hotspots?|(wild|forest )?fires?)\b/i;
+// ...and about Singapore: named in the headline, or its PSI (Malaysia reports an API instead), or from NEA.
+const SINGAPORE = /\b(singapore(ans?)?|s[’']pore(ans?)?|psi)\b/i;
+const SINGAPORE_SOURCES = /national environment agency|\bnea\b/i;
+
+/** Whether a headline is about Singapore's haze situation (not the region's in general). */
+export const aboutSingaporeHaze = ({ title, source }: Pick<NewsItem, "title" | "source">) =>
+  AIR.test(title) && (SINGAPORE.test(title) || SINGAPORE_SOURCES.test(source));
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
@@ -41,7 +48,7 @@ export function parseRss(xml: string): NewsItem[] {
     const url = httpsUrl(tag("link"));
     const published = Date.parse(tag("pubDate"));
     const key = title.toLowerCase();
-    if (!RELEVANT.test(title) || !url || Number.isNaN(published) || seen.has(key)) return [];
+    if (!aboutSingaporeHaze({ title, source }) || !url || Number.isNaN(published) || seen.has(key)) return [];
     seen.add(key);
     return [{ title, url, source: source || new URL(url).hostname, publishedAt: new Date(published).toISOString() }];
   });
