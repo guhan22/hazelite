@@ -36,6 +36,13 @@ export const thresholdsFor = (bands: Band[]) => bands.slice(1).map((b) => ({ val
 
 export type Profile = "general" | "vulnerable";
 
+/** Whose advice to show. Vulnerable = the elderly, pregnant women, children, and people with chronic lung or heart disease. */
+export const PROFILES: readonly { value: Profile; label: string }[] = [
+  { value: "general", label: "Generally healthy" },
+  { value: "vulnerable", label: "Vulnerable" },
+];
+export const PROFILE_IDS = PROFILES.map((p) => p.value);
+
 /**
  * NEA's personal guide for activities in the next hour, keyed on the 1-hr PM2.5 band.
  * Vulnerable = the elderly, pregnant women, children, and people with chronic lung or heart disease.

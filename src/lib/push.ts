@@ -1,11 +1,10 @@
 import webpush from "web-push";
-import { PM25_BANDS, type Profile, type Severity } from "./bands";
+import { PM25_BANDS, PROFILE_IDS, type Profile, type Severity } from "./bands";
 import { pool } from "./db";
 import { REGIONS, type Region } from "./schema";
 
 /** Severities a subscriber can choose to be alerted at: NEA's 1-hr PM2.5 bands above Normal. */
 export const ALERT_LEVELS = PM25_BANDS.slice(1).map((b) => b.severity);
-const PROFILES: Profile[] = ["general", "vulnerable"];
 const MAX_SUBSCRIPTIONS = 10_000;
 
 /**
@@ -55,7 +54,7 @@ export function parseSubscription(body: unknown): Subscription | null {
   const auth = validKey(b?.subscription?.keys?.auth, 16, 32); // 16-byte secret
   const region = pick(b?.region, REGIONS);
   const level = pick(b?.level, ALERT_LEVELS);
-  const profile = pick(b?.profile, PROFILES);
+  const profile = pick(b?.profile, PROFILE_IDS);
   const updates = b?.updates === true;
   return endpoint && p256dh && auth && region && level && profile ? { endpoint, p256dh, auth, region, level, profile, updates } : null;
 }

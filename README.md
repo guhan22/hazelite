@@ -81,7 +81,8 @@ src/lib/wind.ts         station wind → islandwide and per-region averages
 src/lib/geo.ts          region locations, nearest region to a point
 src/lib/bands.ts        NEA PSI / PM2.5 bands, chart thresholds, health advisories
 src/app/page.tsx        dashboard
-src/components/         chart, region map, mascot, cards, pollutant table, page shell
+src/components/         chart, region map, mascot, cards, pollutant table, page shell; tabs, dialogs,
+                        popovers and toggles use Radix UI primitives, tab swiping uses Embla Carousel
 .github/workflows/      hourly production refresh; release announcements
 src/assets/mascots/     mascot artwork
 ```
@@ -95,7 +96,7 @@ src/assets/mascots/     mascot artwork
 - **Where the smoke comes from.** Daily fire hotspots in Sumatra and Borneo from NASA's VIIRS satellite (NOAA-20), compared with the previous days, and whether the current wind blows from either region.
 - **In the news.** The week's haze headlines.
 - **Haze alerts.** The bell in the header subscribes this browser to push notifications for an area: one when its 1-hr PM2.5 reaches the band you pick (Elevated, High or Very high), again if it gets worse, and one when it clears. Alerts are checked after every refresh (hourly), with a 2-hour cooldown so a reading hovering on a boundary doesn't spam. Subscribers can also opt in to a notification when a new version goes live: `.github/workflows/announce.yml` runs when Vercel reports a successful production deployment and calls `POST /api/release` (bearer `INGEST_TOKEN`), which announces each version once. On iPhone and iPad, alerts work only in the installed app (iOS 16.4+). The server stores only the push address and the three choices (`src/lib/push.ts`, `src/lib/alerts.ts`).
-- **Tabs.** Now, Forecast, Trends and News in a centred bar that sticks to the top while you scroll, so everything is a tap away instead of a long scroll. On touch screens, swipe left or right to change tabs (not on the chart, sliders or tables that scroll sideways). The active tab is kept in `?tab=`.
+- **Tabs.** Now, Forecast, Trends and News in a centred bar that sticks to the top while you scroll, so everything is a tap away instead of a long scroll. On touch screens, swipe left or right: the panels follow your finger and snap to the nearest tab (Embla Carousel), except when the swipe starts on the chart, a slider or a table that scrolls sideways. The active tab is kept in `?tab=`.
 - **Trend chart** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). It follows the **Now / 24-hr PSI** toggle (1-hr PM2.5 by default), which is shared with the region explorer. The hourly PM2.5 chart continues with a dashed model forecast. Lines break where data is missing.
 - **Installable app (PWA).** It can be added to the Home Screen with its own icon and opens full-screen. On iPhone, use Safari's Share → **Add to Home Screen**; the header's **Install** button shows these steps. On Android and desktop Chrome/Edge, the **Install** button opens the browser's prompt. When installed, it opens offline with the last reading it saved and says it's offline. The service worker is `public/sw.js`, the manifest is `src/app/manifest.ts`, and the icons are in `public/icons/` and `src/app/`.
 - **Light/dark theme toggle.** It follows the OS setting until you choose, and remembers your choice.

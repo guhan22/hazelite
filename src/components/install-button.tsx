@@ -1,5 +1,6 @@
 "use client";
 
+import { Popover } from "radix-ui";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { isIos, isStandalone } from "@/lib/platform";
 import { chromeButton } from "./styles";
@@ -24,7 +25,6 @@ export function InstallButton() {
   const platform = useSyncExternalStore(noSubscribe, detectPlatform, () => null);
   const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
-  const [showSteps, setShowSteps] = useState(false);
 
   useEffect(() => {
     const onPrompt = (e: Event) => {
@@ -42,28 +42,41 @@ export function InstallButton() {
 
   if (installed || platform === null || platform === "installed" || (platform === "other" && !prompt)) return null;
 
-  const onClick = async () => {
-    if (!prompt) return setShowSteps((s) => !s);
-    await prompt.prompt();
-    if ((await prompt.userChoice).outcome === "accepted") setInstalled(true);
-    setPrompt(null); // a prompt can only be used once
-  };
+  const icon = (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+    </svg>
+  );
+  const buttonClass = `inline-flex h-9 items-center gap-1.5 px-3 text-sm ${chromeButton}`;
 
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={onClick}
-        aria-expanded={prompt ? undefined : showSteps}
-        className={`inline-flex h-9 items-center gap-1.5 px-3 text-sm ${chromeButton}`}
-      >
-        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
-        </svg>
+  if (prompt) {
+    const install = async () => {
+      await prompt.prompt();
+      if ((await prompt.userChoice).outcome === "accepted") setInstalled(true);
+      setPrompt(null); // a prompt can only be used once
+    };
+    return (
+      <button type="button" onClick={install} className={buttonClass}>
+        {icon}
         Install
       </button>
-      {showSteps && (
-        <div role="dialog" aria-label="Add to Home Screen" className="absolute right-0 top-11 z-20 w-64 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg">
+    );
+  }
+
+  // iOS has no install prompt: show the Share → Add to Home Screen steps.
+  return (
+    <Popover.Root>
+      <Popover.Trigger className={buttonClass}>
+        {icon}
+        Install
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={8}
+          aria-label="Add to Home Screen"
+          className="z-50 w-64 rounded-lg border border-border bg-surface p-3 text-sm text-ink shadow-lg"
+        >
           <p className="font-medium">Add Hazelite to your Home Screen</p>
           <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-ink-2">
             <li>
@@ -75,8 +88,8 @@ export function InstallButton() {
             </li>
             <li>Choose &ldquo;Add to Home Screen&rdquo;</li>
           </ol>
-        </div>
-      )}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { PM25_BANDS, type Profile, type Severity } from "@/lib/bands";
+import { Dialog } from "radix-ui";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { PM25_BANDS, PROFILE_IDS, PROFILES, type Profile, type Severity } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
 import { isIos } from "@/lib/platform";
 import { REGIONS, type Region } from "@/lib/schema";
 import { useStoredChoice } from "@/lib/use-stored-choice";
-import { chromeButton, field, pill } from "./styles";
+import { AreaSelect } from "./area-select";
+import { Segmented } from "./segmented";
+import { chromeButton, pill } from "./styles";
 
-const LEVELS = PM25_BANDS.slice(1);
-const PROFILES: { id: Profile; label: string }[] = [
-  { id: "general", label: "Generally healthy" },
-  { id: "vulnerable", label: "Vulnerable" },
-];
+const LEVELS = PM25_BANDS.slice(1).map((b) => ({
+  value: b.severity,
+  label: (
+    <>
+      {b.label} <span className="opacity-70">{b.min}+</span>
+    </>
+  ),
+}));
 
 type Support = "yes" | "ios-install" | "no";
 const detectSupport = (): Support =>
@@ -43,13 +49,12 @@ async function callApi(method: "POST" | "DELETE", body: unknown) {
 export function AlertsButton({ vapidKey }: { vapidKey: string }) {
   const support = useSyncExternalStore(noSubscribe, detectSupport, () => null);
   const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
-  const [level, setLevel] = useStoredChoice<Severity>("hazelite:alert-level", LEVELS.map((b) => b.severity), "unhealthy");
-  const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", ["general", "vulnerable"], "general");
+  const [level, setLevel] = useStoredChoice<Severity>("hazelite:alert-level", LEVELS.map((l) => l.value), "unhealthy");
+  const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");
   const [updates, setUpdates] = useStoredChoice("hazelite:update-alerts", ["on", "off"], "off");
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (support !== "yes") return;
@@ -95,10 +100,8 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
   });
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => dialog.current?.showModal()}
+    <Dialog.Root>
+      <Dialog.Trigger
         aria-label={subscribed ? "Haze alerts (on)" : "Haze alerts"}
         title="Haze alerts"
         className={`relative grid size-9 place-items-center ${chromeButton}`}
@@ -107,100 +110,74 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
           <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {subscribed && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[var(--status-good)]" aria-hidden />}
-      </button>
+      </Dialog.Trigger>
 
-      <dialog
-        ref={dialog}
-        aria-labelledby="alerts-title"
-        className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-5 text-sm text-ink backdrop:bg-black/50"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h2 id="alerts-title" className="text-base font-semibold">
-            Haze alerts
-          </h2>
-          <form method="dialog">
-            <button type="submit" aria-label="Close" className={`grid size-8 place-items-center ${chromeButton}`}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-surface p-5 text-sm text-ink shadow-xl">
+          <div className="flex items-start justify-between gap-3">
+            <Dialog.Title className="text-base font-semibold">Haze alerts</Dialog.Title>
+            <Dialog.Close aria-label="Close" className={`grid size-8 place-items-center ${chromeButton}`}>
               <svg width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
-            </button>
-          </form>
-        </div>
-        <p className="mt-1 text-ink-2">
-          Get a notification when 1-hr PM2.5 in your area reaches the level you choose, and when it clears.
-        </p>
+            </Dialog.Close>
+          </div>
+          <Dialog.Description className="mt-1 text-ink-2">
+            Get a notification when 1-hr PM2.5 in your area reaches the level you choose, and when it clears.
+          </Dialog.Description>
 
-        {support === "ios-install" ? (
-          <p className="mt-4 rounded-lg border border-border p-3">
-            On iPhone and iPad, alerts work in the installed app: tap Share, choose &ldquo;Add to Home Screen&rdquo;, open Hazelite
-            from your Home Screen, then turn alerts on here.
-          </p>
-        ) : support === "no" ? (
-          <p className="mt-4 rounded-lg border border-border p-3">This browser doesn&apos;t support notifications.</p>
-        ) : (
-          <>
-            <div className="mt-4 space-y-3">
-              <label className="flex items-center justify-between gap-2">
-                <span className="text-ink-2">Area</span>
-                <select value={region} onChange={(e) => setRegion(e.target.value as Region)} className={field}>
-                  {REGIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {titleCase(r)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div>
-                <div className="mb-1.5 text-ink-2">Alert me at</div>
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Alert level">
-                  {LEVELS.map((b) => (
-                    <button key={b.severity} type="button" aria-pressed={level === b.severity} onClick={() => setLevel(b.severity)} className={pill(level === b.severity)}>
-                      {b.label} <span className="opacity-70">{b.min}+</span>
-                    </button>
-                  ))}
+          {support === "ios-install" ? (
+            <p className="mt-4 rounded-lg border border-border p-3">
+              On iPhone and iPad, alerts work in the installed app: tap Share, choose &ldquo;Add to Home Screen&rdquo;, open Hazelite
+              from your Home Screen, then turn alerts on here.
+            </p>
+          ) : support === "no" ? (
+            <p className="mt-4 rounded-lg border border-border p-3">This browser doesn&apos;t support notifications.</p>
+          ) : (
+            <>
+              <div className="mt-4 space-y-3">
+                <AreaSelect value={region} onChange={setRegion} className="justify-between" />
+                <div>
+                  <div className="mb-1.5 text-ink-2">Alert me at</div>
+                  <Segmented label="Alert level" value={level} options={LEVELS} onChange={setLevel} />
                 </div>
-              </div>
-              <div>
-                <div className="mb-1.5 text-ink-2">Advice for</div>
-                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Health profile">
-                  {PROFILES.map((p) => (
-                    <button key={p.id} type="button" aria-pressed={profile === p.id} onClick={() => setProfile(p.id)} className={pill(profile === p.id)}>
-                      {p.label}
-                    </button>
-                  ))}
+                <div>
+                  <div className="mb-1.5 text-ink-2">Advice for</div>
+                  <Segmented label="Health profile" value={profile} options={PROFILES} onChange={setProfile} />
                 </div>
+                <label className="flex items-center gap-2 text-ink-2">
+                  <input
+                    type="checkbox"
+                    checked={updates === "on"}
+                    onChange={(e) => setUpdates(e.target.checked ? "on" : "off")}
+                    className="size-4 accent-[var(--ink)]"
+                  />
+                  Also tell me when Hazelite is updated
+                </label>
               </div>
-              <label className="flex items-center gap-2 text-ink-2">
-                <input
-                  type="checkbox"
-                  checked={updates === "on"}
-                  onChange={(e) => setUpdates(e.target.checked ? "on" : "off")}
-                  className="size-4 accent-[var(--ink)]"
-                />
-                Also tell me when Hazelite is updated
-              </label>
-            </div>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" onClick={turnOn} disabled={busy} className="rounded-full bg-ink px-4 py-1.5 font-medium text-page transition-opacity hover:opacity-90 disabled:opacity-60">
-                {subscribed ? "Save changes" : "Turn on alerts"}
-              </button>
-              {subscribed && (
-                <button type="button" onClick={turnOff} disabled={busy} className={`${pill(false)} disabled:opacity-60`}>
-                  Turn off
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" onClick={turnOn} disabled={busy} className="rounded-full bg-ink px-4 py-1.5 font-medium text-page transition-opacity hover:opacity-90 disabled:opacity-60">
+                  {subscribed ? "Save changes" : "Turn on alerts"}
                 </button>
-              )}
-            </div>
-          </>
-        )}
+                {subscribed && (
+                  <button type="button" onClick={turnOff} disabled={busy} className={`${pill(false)} disabled:opacity-60`}>
+                    Turn off
+                  </button>
+                )}
+              </div>
+            </>
+          )}
 
-        <p className="mt-3 min-h-5 text-ink-2" role="status">
-          {busy ? "Working…" : status}
-        </p>
-        <p className="mt-2 text-xs text-muted">
-          Hazelite stores only your browser&apos;s push address and these choices, and checks readings hourly.
-        </p>
-      </dialog>
-    </>
+          <p className="mt-3 min-h-5 text-ink-2" role="status">
+            {busy ? "Working…" : status}
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            Hazelite stores only your browser&apos;s push address and these choices, and checks readings hourly.
+          </p>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

@@ -2,7 +2,7 @@
 
 import { createContext, use, useState, type ReactNode } from "react";
 import { METRICS, type MetricId } from "@/lib/metrics";
-import { pill } from "./styles";
+import { Segmented } from "./segmented";
 
 const MetricContext = createContext<readonly [MetricId, (id: MetricId) => void]>(["pm25", () => {}]);
 
@@ -14,23 +14,11 @@ export function MetricProvider({ children }: { children: ReactNode }) {
 
 export const useMetric = () => use(MetricContext);
 
+const METRIC_OPTIONS = Object.values(METRICS).map((m) => ({ value: m.id, label: m.name }));
+
 export function MetricToggle() {
   const [metricId, setMetricId] = useMetric();
-  return (
-    <div className="flex gap-1.5 text-xs" role="group" aria-label="Show">
-      {Object.values(METRICS).map((m) => (
-        <button
-          key={m.id}
-          type="button"
-          aria-pressed={m.id === metricId}
-          onClick={() => setMetricId(m.id)}
-          className={pill(m.id === metricId)}
-        >
-          {m.name}
-        </button>
-      ))}
-    </div>
-  );
+  return <Segmented label="Show" value={metricId} options={METRIC_OPTIONS} onChange={setMetricId} className="text-xs" />;
 }
 
 /** Shows whichever pre-rendered view matches the selected metric. */

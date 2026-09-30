@@ -1,20 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { bandFor, pm25GuideFor, PM25_BANDS, type Profile } from "@/lib/bands";
+import { bandFor, pm25GuideFor, PM25_BANDS, PROFILE_IDS, PROFILES, type Profile } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
 import { nearestRegion } from "@/lib/geo";
 import type { LatestReading } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { useStoredChoice } from "@/lib/use-stored-choice";
+import { AreaSelect } from "./area-select";
 import { Card } from "./card";
-import { field, pill } from "./styles";
+import { Segmented } from "./segmented";
+import { pill } from "./styles";
 import { StatusIcon } from "./status";
-
-const PROFILES: { id: Profile; label: string }[] = [
-  { id: "general", label: "Generally healthy" },
-  { id: "vulnerable", label: "Vulnerable" },
-];
 
 // Rough bounding box for mainland Singapore and its nearby islands.
 const inSingapore = (lat: number, lon: number) => lat > 1.15 && lat < 1.48 && lon > 103.6 && lon < 104.1;
@@ -30,7 +27,7 @@ export function OutdoorPlanner({
   /** The model's highest PM2.5 for tomorrow's daytime, islandwide. */
   tomorrow: number | null;
 }) {
-  const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", ["general", "vulnerable"], "general");
+  const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");
   const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
   const [locating, setLocating] = useState<string | null>(null);
 
@@ -55,27 +52,8 @@ export function OutdoorPlanner({
   return (
     <Card title="Can I go out?" subtitle="NEA's guide for the next hour, based on the latest 1-hr PM2.5 reading" className={className}>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-        <div className="flex gap-1.5" role="group" aria-label="Health profile">
-          {PROFILES.map((p) => (
-            <button key={p.id} type="button" aria-pressed={profile === p.id} onClick={() => setProfile(p.id)} className={pill(profile === p.id)}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <label className="ml-auto flex items-center gap-2 text-ink-2">
-          Area
-          <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value as Region)}
-            className={field}
-          >
-            {REGIONS.map((r) => (
-              <option key={r} value={r}>
-                {titleCase(r)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Segmented label="Health profile" value={profile} options={PROFILES} onChange={setProfile} />
+        <AreaSelect value={region} onChange={setRegion} className="ml-auto" />
         <button type="button" onClick={locate} className={pill(false)}>
           Use my location
         </button>
