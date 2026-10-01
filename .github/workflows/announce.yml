@@ -19,9 +19,10 @@ jobs:
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           SHA: ${{ github.event.deployment.sha }}
           GH_TOKEN: ${{ github.token }}
-        # The commit message goes through jq as data, never into the script itself.
+        # The note is the commit's "Release-Note:" trailer, written for people rather than developers
+        # (empty means the server picks a cheerful default). It goes through jq as data, never into the script.
         run: |
-          summary=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq '.commit.message' | head -n1)
+          summary=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq '.commit.message' | sed -n 's/^Release-Note: *//p' | tail -n1)
           jq -n --arg version "$SHA" --arg summary "$summary" '{version: $version, summary: $summary}' |
             curl --fail-with-body --silent --show-error --max-time 120 -X POST \
               -H "Authorization: Bearer $INGEST_TOKEN" -H "content-type: application/json" \

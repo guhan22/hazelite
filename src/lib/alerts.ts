@@ -73,18 +73,38 @@ export async function sendAlerts(): Promise<void> {
   }
 }
 
+// Release notices are meant to be fun: a playful title, and the release's own cheerful note.
+const RELEASE_TITLES = [
+  "🐉 Psst! Hazelite just got a glow-up",
+  "✨ Fresh from the dragon's den!",
+  "🎉 New Hazelite, who dis?",
+  "🌤️ Hazelite has a little surprise for you",
+];
+const RELEASE_FALLBACKS = [
+  "The dragon has been busy polishing things up. Tap to take a peek! 🐉",
+  "Shiny new bits are waiting for you. Come say hi! 👋",
+  "A sprinkle of new magic just landed. Go on, have a look! ✨",
+];
+/** Same version, same pick: a re-delivered deployment event still reads the same. */
+const pick = (list: string[], version: string) => list[(parseInt(version.slice(0, 8), 16) || 0) % list.length];
+
 /**
- * Tells update subscribers that a new version is live. Each version is announced once, however
+ * Tells update subscribers that a new version is live, with the release's cheerful note (from the
+ * commit's `Release-Note:` trailer) or a friendly default. Each version is announced once, however
  * often the deployment event is delivered. Returns how many notifications were sent.
  */
-export async function announceRelease(version: string, summary: string): Promise<number> {
+export async function announceRelease(version: string, note: string): Promise<number> {
   if (!pushConfigured()) return 0;
   const { rowCount } = await pool.query("INSERT INTO releases (version) VALUES ($1) ON CONFLICT DO NOTHING", [version]);
   if (!rowCount) return 0;
   const { rows } = await pool.query<Pick<Subscription, "endpoint" | "p256dh" | "auth">>(
     "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE updates",
   );
-  const update: Notice = { title: "Hazelite has been updated", body: summary || "A new version is live. Open the app to get it.", tag: "hazelite-update" };
+  const update: Notice = {
+    title: pick(RELEASE_TITLES, version),
+    body: note || pick(RELEASE_FALLBACKS, version),
+    tag: "hazelite-update",
+  };
   const results = await settleInBatches(rows, (sub) => send(sub, update));
   results.forEach((r) => r.status === "rejected" && logError("update notice", r.reason));
   return results.filter((r) => r.status === "fulfilled" && r.value === true).length;

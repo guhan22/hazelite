@@ -77,6 +77,32 @@ body {
   80% { transform: rotate(2deg); }
 }
 
+/* Loading screen: the dragon hops (squashing a little on landing) while haze drifts past. */
+@keyframes dragon-hop {
+  0%, 100% { transform: translateY(0) scale(1.04, 0.96); }
+  15% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-18%) scale(0.97, 1.03); }
+  85% { transform: translateY(0) scale(1, 1); }
+}
+
+/* Scale only: the element's centring uses the separate `translate` property. */
+@keyframes dragon-shadow {
+  0%, 15%, 85%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.6); opacity: 0.5; }
+}
+
+/* Puffs fade in and out at the ends of their drift, so there are no hard edges. */
+@keyframes puff-drift {
+  0% { transform: translateX(-5rem); opacity: 0; }
+  25%, 75% { opacity: 0.3; }
+  100% { transform: translateX(13rem); opacity: 0; }
+}
+
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-0.25em); }
+}
+
 /* Side gutters that also clear the notch in landscape (the viewport is edge to edge: viewport-fit=cover). */
 .safe-gutters {
   --gutter: 1rem;

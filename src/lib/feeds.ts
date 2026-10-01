@@ -28,9 +28,11 @@ type FeedName = keyof typeof FEEDS;
 export type Feeds = { [K in FeedName]: Awaited<ReturnType<(typeof FEEDS)[K]["fetch"]>> | null };
 const NAMES = Object.keys(FEEDS) as FeedName[];
 
-async function refresh<T>(name: string, { every, enabled, fetch }: Feed<T>) {
-  if (enabled && !enabled()) return;
-  // Claim the feed: succeeds only if it's due, so each fetch happens once however many callers race.
+/**
+ * Runs a scheduled task if it hasn't run within `every` minutes, storing its result under `name`.
+ * The claim succeeds for one caller only, so the task runs once however many refreshes race.
+ */
+export async function runIfDue<T>(name: string, every: number, task: (previous: T | null) => Promise<T>) {
   const { rows } = await pool.query<{ data: T | null }>(
     `INSERT INTO feeds (name) VALUES ($1)
      ON CONFLICT (name) DO UPDATE SET attempted_at = now()
@@ -40,7 +42,7 @@ async function refresh<T>(name: string, { every, enabled, fetch }: Feed<T>) {
   );
   if (rows.length === 0) return;
   try {
-    const data = await fetch(rows[0].data);
+    const data = await task(rows[0].data);
     await pool.query("UPDATE feeds SET data = $2::jsonb, fetched_at = now(), error = NULL WHERE name = $1", [name, JSON.stringify(data)]);
   } catch (err) {
     // Keep the last good snapshot; the error stays server-side.
@@ -51,7 +53,12 @@ async function refresh<T>(name: string, { every, enabled, fetch }: Feed<T>) {
 
 /** Refreshes every feed that's due. One failing source never blocks the others, and this never throws. */
 export async function refreshFeeds(): Promise<void> {
-  const results = await Promise.allSettled(NAMES.map((name) => refresh(name, FEEDS[name] as Feed<unknown>)));
+  const results = await Promise.allSettled(
+    NAMES.map((name) => {
+      const { every, enabled, fetch } = FEEDS[name] as Feed<unknown>;
+      return enabled && !enabled() ? null : runIfDue(name, every, fetch);
+    }),
+  );
   results.forEach((r, i) => r.status === "rejected" && logError(`${NAMES[i]} feed`, r.reason));
 }
 

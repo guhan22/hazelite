@@ -8,7 +8,8 @@ const VERSION = /^[\w.-]{1,64}$/;
 
 /**
  * Announces a new production version to update subscribers. Called by the GitHub Actions workflow
- * once Vercel reports the deployment live, with `{ version: <commit sha>, summary: <first line of the commit> }`.
+ * once Vercel reports the deployment live, with `{ version: <commit sha>, summary: <the commit's
+ * Release-Note trailer, or empty> }`.
  */
 export async function POST(request: Request) {
   if (!isScheduler(request)) return Response.json({ error: "unauthorized" }, { status: 401 });

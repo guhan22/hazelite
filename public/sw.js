@@ -10,8 +10,9 @@ self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
+    // Navigation preload starts fetching the page while this worker boots, instead of after.
+    Promise.resolve(self.registration.navigationPreload?.enable())
+      .then(() => caches.keys())
       .then((keys) => Promise.all(keys.filter((k) => k !== PAGES && k !== ASSETS).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
@@ -25,7 +26,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
   if (req.mode === "navigate") {
-    event.respondWith(networkFirst(req));
+    event.respondWith(networkFirst(event));
   } else if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
     event.respondWith(cacheFirst(req)); // content-hashed or versioned: safe to reuse
   } else if (url.pathname.startsWith("/_next/image")) {
@@ -61,12 +62,17 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-/** Pages: always try for fresh data; offline, show this page's last copy, else the newest saved one. */
-async function networkFirst(req) {
+/**
+ * Pages: always try for fresh data; offline, show this page's last copy, else the newest saved one.
+ * The response is returned as it streams (the loading screen shows straight away) and saved in the
+ * background, rather than held back until the whole page has downloaded.
+ */
+async function networkFirst(event) {
+  const req = event.request;
   const cache = await caches.open(PAGES);
   try {
-    const res = await fetch(req);
-    if (res.ok) await cache.put(req, res.clone());
+    const res = (await event.preloadResponse) || (await fetch(req));
+    if (res.ok) event.waitUntil(cache.put(req, res.clone()));
     return res;
   } catch {
     const keys = await cache.keys();

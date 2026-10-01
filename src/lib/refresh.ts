@@ -1,15 +1,20 @@
 import { sendAlerts } from "./alerts";
 import { pool } from "./db";
-import { refreshFeeds } from "./feeds";
+import { refreshFeeds, runIfDue } from "./feeds";
 import { logError } from "./http";
 import { ingestRecent } from "./ingest";
+import { pruneOldData } from "./retention";
 
 /**
  * Refreshes NEA readings and wind (then sends any haze alerts they trigger), plus any supplementary
- * feed that's due. Returns reading rows upserted.
+ * feed that's due, and once a day prunes old rows. Returns reading rows upserted.
  */
 export async function refreshAll(): Promise<number> {
-  const [rows] = await Promise.all([ingestRecent().then(async (n) => (await sendAlerts(), n)), refreshFeeds()]);
+  const [rows] = await Promise.all([
+    ingestRecent().then(async (n) => (await sendAlerts(), n)),
+    refreshFeeds(),
+    runIfDue("cleanup", 24 * 60, pruneOldData).catch((err) => logError("cleanup", err)),
+  ]);
   return rows;
 }
 

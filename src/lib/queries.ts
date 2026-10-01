@@ -31,16 +31,6 @@ export async function getLatest(): Promise<LatestReading[]> {
   return rows;
 }
 
-/** Max 24-hr PSI across regions `hoursAgo` hours before `at`. */
-export async function getNationalPsiAt(at: Date, hoursAgo: number): Promise<number | null> {
-  const { rows } = await pool.query<{ psi: number | null }>(
-    `SELECT max(psi_24h)::int AS psi FROM readings
-     WHERE observed_at = $1::timestamptz - make_interval(hours => $2)`,
-    [at, hoursAgo],
-  );
-  return rows[0]?.psi ?? null;
-}
-
 export interface SeriesPoint {
   t: number;
   values: Partial<Record<Region, { psi: number | null; pm25: number | null }>>;
