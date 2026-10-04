@@ -8,7 +8,7 @@ import type { SeriesPoint } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { worstBy } from "@/lib/summary";
 import { tipsFor } from "@/lib/tips";
-import { useStoredChoice } from "@/lib/use-stored-choice";
+import { useAreaChoice } from "@/lib/use-stored-choice";
 import type { Wind } from "@/lib/wind";
 import { HazeOverlay } from "./haze-overlay";
 import { LocateButton } from "./locate-button";
@@ -42,8 +42,10 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
   const [metricId] = useMetric();
   const [frame, setFrame] = useState<number | null>(null);
   const [tip, setTip] = useState<number | null>(null);
+  /** A one-off line from the dragon (after "Use my location"), shown until the next tap. */
+  const [note, setNote] = useState<string | null>(null);
   // "Use my location" also sets the area in "Can I go out?".
-  const [, setPlannerRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
+  const [, setArea] = useAreaChoice();
   const onFrame = useCallback((i: number | null) => setFrame(i), []);
 
   const metric = METRICS[metricId];
@@ -79,7 +81,8 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
           className="ml-auto"
           onLocate={(r) => {
             setSelected(r);
-            setPlannerRegion(r);
+            setArea(r);
+            setNote(`Found you! The dragon flew over to ${titleCase(r)}. 📍`);
           }}
         />
       </div>
@@ -88,7 +91,10 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
         <PlayfulMascot
           severity={severity}
           label={`The dragon is ${MOOD_LABEL[severity]}. Tap for a tip`}
-          onPoke={() => setTip((t) => (t == null ? 0 : t + 1))}
+          onPoke={() => {
+            setNote(null);
+            setTip((t) => (t == null ? 0 : t + 1));
+          }}
         />
         <div className="mb-2 flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl rounded-bl-sm border border-border bg-surface px-3 py-2 text-sm" aria-live="polite">
           <div>
@@ -101,7 +107,7 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
               {metric.unit && ` ${metric.unit}`} · {band?.label ?? "No data"}
             </div>
             <div className="text-xs text-ink-2">
-              {tip == null ? `The dragon is ${MOOD_LABEL[severity]}. Tap it for a tip!` : tips[tip % tips.length]}
+              {note ?? (tip == null ? `The dragon is ${MOOD_LABEL[severity]}. Tap it for a tip!` : tips[tip % tips.length])}
             </div>
           </div>
           {/* Wind is live-only; a region without a nearby station falls back to the islandwide wind. */}
@@ -113,7 +119,10 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
         readings={shown}
         metric={metric}
         selected={selected}
-        onSelect={(r) => setSelected((cur) => (cur === r ? null : r))}
+        onSelect={(r) => {
+          setNote(null);
+          setSelected((cur) => (cur === r ? null : r));
+        }}
         hazeSoon={frame == null ? hazeSoon : undefined}
       />
 

@@ -31,9 +31,14 @@ export async function getLatest(): Promise<LatestReading[]> {
   return rows;
 }
 
+export interface RegionValues {
+  psi: number | null;
+  pm25: number | null;
+}
+
 export interface SeriesPoint {
   t: number;
-  values: Partial<Record<Region, { psi: number | null; pm25: number | null }>>;
+  values: Partial<Record<Region, RegionValues>>;
 }
 
 // Chosen by key from this static map, never from input.

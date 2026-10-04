@@ -1,10 +1,9 @@
 "use client";
 
-import { bandFor, pm25GuideFor, PM25_BANDS, PROFILE_IDS, PROFILES, type Profile } from "@/lib/bands";
+import { bandFor, pm25GuideFor, PM25_BANDS, PROFILES } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
 import type { LatestReading } from "@/lib/queries";
-import { REGIONS, type Region } from "@/lib/schema";
-import { useStoredChoice } from "@/lib/use-stored-choice";
+import { useAreaChoice, useProfileChoice } from "@/lib/use-stored-choice";
 import { AreaSelect } from "./area-select";
 import { Card } from "./card";
 import { Segmented } from "./segmented";
@@ -24,8 +23,8 @@ export function OutdoorPlanner({
   /** The model's highest PM2.5 for tomorrow's daytime, islandwide. */
   tomorrow: number | null;
 }) {
-  const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");
-  const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
+  const [profile, setProfile] = useProfileChoice();
+  const [region, setRegion] = useAreaChoice();
 
   const pm25 = readings.find((r) => r.region === region)?.pm25_1h ?? null;
   const band = bandFor(PM25_BANDS, pm25);

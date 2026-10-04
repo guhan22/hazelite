@@ -1,10 +1,8 @@
 import webpush from "web-push";
-import { AQI_BANDS, PROFILE_IDS, type AqiLevel, type Profile } from "./bands";
+import { ALERT_LEVELS, PROFILE_IDS, type AqiLevel, type Profile } from "./bands";
 import { pool } from "./db";
 import { REGIONS, type Region } from "./schema";
 
-/** Levels a subscriber can choose to be alerted at: the 1-hr AQI categories from "Unhealthy (sensitive)" up. */
-export const ALERT_LEVELS = AQI_BANDS.slice(2).map((b) => b.level);
 const MAX_SUBSCRIPTIONS = 10_000;
 
 /**

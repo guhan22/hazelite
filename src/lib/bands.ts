@@ -39,6 +39,10 @@ export const AQI_BANDS: (Band & { level: AqiLevel })[] = [
   { level: "hazardous", severity: "hazardous", label: "Hazardous", min: 301, max: Infinity },
 ];
 
+/** AQI bands a subscriber can be alerted at: Unhealthy and worse. */
+export const ALERT_BANDS = AQI_BANDS.filter((b) => b.min > 150);
+export const ALERT_LEVELS = ALERT_BANDS.map((b) => b.level);
+
 /** PM2.5 concentration (µg/m³) to AQI: [lowest concentration, highest concentration, lowest AQI, highest AQI]. */
 const PM25_AQI_BREAKPOINTS = [
   [0, 9, 0, 50],
@@ -97,7 +101,6 @@ export function pm25GuideFor(severity: Severity, profile: Profile, when = "for t
  */
 export function aqiGuideFor(level: AqiLevel, profile: Profile): string {
   const guide: Partial<Record<AqiLevel, Record<Profile, string>>> = {
-    "unhealthy-sensitive": { general: "It's fine to be active outdoors", vulnerable: "Reduce long or intense outdoor activity" },
     unhealthy: { general: "Reduce long or intense outdoor activity", vulnerable: "Avoid long or intense outdoor activity" },
     "very-unhealthy": { general: "Avoid long or intense outdoor activity", vulnerable: "Avoid all physical activity outdoors" },
     hazardous: { general: "Avoid all physical activity outdoors", vulnerable: "Stay indoors and keep activity levels low" },

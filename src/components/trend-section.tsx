@@ -3,7 +3,7 @@ import { aqiFromPm25, AQI_BANDS, PM25_BANDS, PSI_BANDS, thresholdsFor, type Band
 import type { Pm25Forecast } from "@/lib/forecast";
 import { titleCase } from "@/lib/format";
 import type { MetricId } from "@/lib/metrics";
-import { RANGES, type RangeKey, type SeriesPoint } from "@/lib/queries";
+import { RANGES, type RangeKey, type RegionValues, type SeriesPoint } from "@/lib/queries";
 import { DISPLAY_ORDER } from "@/lib/schema";
 import { HOUR } from "@/lib/time";
 import { Card } from "./card";
@@ -14,8 +14,6 @@ import { TrendChart, type ChartPoint, type ChartSeries } from "./trend-chart";
 const REGION_SERIES: ChartSeries[] = DISPLAY_ORDER.map((r, i) => ({ key: r, label: titleCase(r), color: `var(--series-${i + 1})` }));
 const FORECAST_SERIES: ChartSeries = { key: "forecast", label: "Forecast (model)", color: "var(--ink-2)", dashed: true };
 
-type Values = NonNullable<SeriesPoint["values"][keyof SeriesPoint["values"]]>;
-
 const CHARTS: Record<
   MetricId,
   {
@@ -23,7 +21,7 @@ const CHARTS: Record<
     subtitle: string;
     unit: string;
     bands: Band[];
-    value: (v: Values) => number | null;
+    value: (v: RegionValues | undefined) => number | null;
     /** Converts the model's PM2.5 forecast to this chart's measure; absent means no forecast line. */
     fromPm25?: (pm25: number) => number | null;
   }
@@ -33,7 +31,7 @@ const CHARTS: Record<
     subtitle: "US EPA Air Quality Index from hourly PM2.5",
     unit: "AQI",
     bands: AQI_BANDS,
-    value: (v) => aqiFromPm25(v.pm25),
+    value: (v) => aqiFromPm25(v?.pm25),
     fromPm25: aqiFromPm25,
   },
   pm25: {
@@ -41,10 +39,10 @@ const CHARTS: Record<
     subtitle: "Hourly fine particulate concentration, µg/m³",
     unit: "µg/m³",
     bands: PM25_BANDS,
-    value: (v) => v.pm25,
+    value: (v) => v?.pm25 ?? null,
     fromPm25: (pm25) => pm25,
   },
-  psi: { title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS, value: (v) => v.psi },
+  psi: { title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS, value: (v) => v?.psi ?? null },
 };
 
 /**
@@ -79,10 +77,11 @@ export function TrendSection({
 
   const chart = (field: MetricId) => {
     const c = CHARTS[field];
-    let points: ChartPoint[] = series.map((p) => ({ t: p.t, v: DISPLAY_ORDER.map((r) => { const v = p.values[r]; return v ? c.value(v) : null; }) }));
+    let points: ChartPoint[] = series.map((p) => ({ t: p.t, v: DISPLAY_ORDER.map((r) => c.value(p.values[r])) }));
     // A daily-maximum chart has no room for an hourly forecast.
-    const forecasting = c.fromPm25 != null && bucket === "hour" && forecast != null;
-    if (forecasting) points = withForecast(points, forecast, hours, c.fromPm25!);
+    const fromPm25 = bucket === "hour" ? c.fromPm25 : undefined;
+    const forecasting = forecast != null && fromPm25 != null;
+    if (forecasting) points = withForecast(points, forecast, hours, fromPm25);
     return (
       <Card
         title={c.title}

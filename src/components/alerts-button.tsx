@@ -2,16 +2,15 @@
 
 import { Dialog } from "radix-ui";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AQI_BANDS, PROFILE_IDS, PROFILES, type AqiLevel, type Profile } from "@/lib/bands";
+import { ALERT_BANDS, ALERT_LEVELS, PROFILES, type AqiLevel } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
 import { isIos } from "@/lib/platform";
-import { REGIONS, type Region } from "@/lib/schema";
-import { useStoredChoice } from "@/lib/use-stored-choice";
+import { useAreaChoice, useProfileChoice, useStoredChoice } from "@/lib/use-stored-choice";
 import { AreaSelect } from "./area-select";
 import { Segmented } from "./segmented";
 import { chromeButton, pill } from "./styles";
 
-const LEVELS = AQI_BANDS.slice(2).map((b) => ({
+const LEVELS = ALERT_BANDS.map((b) => ({
   value: b.level,
   label: (
     <>
@@ -48,9 +47,9 @@ async function callApi(method: "POST" | "DELETE", body: unknown) {
  */
 export function AlertsButton({ vapidKey }: { vapidKey: string }) {
   const support = useSyncExternalStore(noSubscribe, detectSupport, () => null);
-  const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
-  const [level, setLevel] = useStoredChoice<AqiLevel>("hazelite:alert-level", LEVELS.map((l) => l.value), "unhealthy");
-  const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");
+  const [region, setRegion] = useAreaChoice();
+  const [level, setLevel] = useStoredChoice<AqiLevel>("hazelite:alert-level", ALERT_LEVELS, "unhealthy");
+  const [profile, setProfile] = useProfileChoice();
   const [updates, setUpdates] = useStoredChoice("hazelite:update-alerts", ["on", "off"], "off");
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -124,7 +123,7 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
             </Dialog.Close>
           </div>
           <Dialog.Description className="mt-1 text-ink-2">
-            Get a notification when 1-hr AQI in your area reaches the level you choose, and when it clears.
+            The dragon will ping you when 1-hr AQI in your area reaches the level you choose, and again when it clears. 🐉🔔
           </Dialog.Description>
 
           {support === "ios-install" ? (

@@ -1,4 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { PROFILE_IDS, type Profile } from "./bands";
+import { REGIONS, type Region } from "./schema";
 
 const EVENT = "hazelite:stored-choice";
 
@@ -37,3 +39,9 @@ export function useStoredChoice<T extends string>(key: string, allowed: readonly
   );
   return [value, set] as const;
 }
+
+/** The viewer's area, shared by "Use my location", "Can I go out?" and the alert settings. */
+export const useAreaChoice = () => useStoredChoice<Region>("hazelite:region", REGIONS, "central");
+
+/** Whose advice to show, shared by "Can I go out?" and the alert settings. */
+export const useProfileChoice = () => useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");

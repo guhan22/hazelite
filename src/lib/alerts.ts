@@ -32,10 +32,10 @@ function notice(action: "alert" | "clear", sub: Tracked, aqi: number): Notice {
   const band = bandFor(AQI_BANDS, aqi)!;
   const where = titleCase(sub.region);
   return action === "alert"
-    ? { title: `Haze alert · ${where}`, body: `1-hr AQI is ${band.label} (${aqi}). ${aqiGuideFor(band.level, sub.profile)}.`, tag: `hazelite-${sub.region}` }
+    ? { title: `😷 Haze alert · ${where}`, body: `1-hr AQI is ${band.label} (${aqi}). ${aqiGuideFor(band.level, sub.profile)}.`, tag: `hazelite-${sub.region}` }
     : band.level === "good"
-      ? { title: `Air has cleared · ${where}`, body: `1-hr AQI is back to ${band.label} (${aqi}).`, tag: `hazelite-${sub.region}` }
-      : { title: `Haze easing · ${where}`, body: `1-hr AQI is down to ${band.label} (${aqi}), below your alert level.`, tag: `hazelite-${sub.region}` };
+      ? { title: `🌤️ Air has cleared · ${where}`, body: `1-hr AQI is back to ${band.label} (${aqi}).`, tag: `hazelite-${sub.region}` }
+      : { title: `🌥️ Haze easing · ${where}`, body: `1-hr AQI is down to ${band.label} (${aqi}), below your alert level.`, tag: `hazelite-${sub.region}` };
 }
 
 /** Checks every subscriber against the latest readings and sends what's due. Never throws. */

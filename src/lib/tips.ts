@@ -34,6 +34,7 @@ const FACTS = [
   "Most haze here is smoke from land and forest fires in the region, blown over by the wind.",
   "A well-fitted N95 mask filters at least 95% of fine particles. Fit matters!",
   "1-hr PM2.5 tells you about right now; 24-hr PSI is better for planning tomorrow.",
+  "1-hr AQI turns PM2.5 into the 0–500 score used around the world. Under 50 is Good!",
   "Air purifiers with HEPA filters trap fine particles; close the windows for them to work well.",
   "Haze from Sumatra usually reaches Singapore on south-westerly winds, typically from June to October.",
 ];
