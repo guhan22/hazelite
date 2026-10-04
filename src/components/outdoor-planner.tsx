@@ -10,6 +10,9 @@ import { Card } from "./card";
 import { Segmented } from "./segmented";
 import { StatusIcon } from "./status";
 
+// Shorter than "Generally healthy", so the profile and area fit on one row on phones.
+const PROFILE_OPTIONS = PROFILES.map((p) => (p.value === "general" ? { ...p, label: "Healthy" } : p));
+
 /** "Can I go out?": NEA's next-hour activity guide for the viewer's area and health profile. */
 export function OutdoorPlanner({
   readings,
@@ -31,8 +34,8 @@ export function OutdoorPlanner({
   return (
     <Card title="Can I go out?" subtitle="NEA's guide for the next hour, based on the latest 1-hr PM2.5 reading" className={className}>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-        <Segmented label="Health profile" value={profile} options={PROFILES} onChange={setProfile} />
-        <AreaSelect value={region} onChange={setRegion} className="ml-auto" />
+        <Segmented label="Health profile" value={profile} options={PROFILE_OPTIONS} onChange={setProfile} />
+        <AreaSelect value={region} onChange={setRegion} compact className="ml-auto" />
       </div>
 
       <div className="mt-4 flex items-start gap-3 rounded-lg border border-border p-4" aria-live="polite">

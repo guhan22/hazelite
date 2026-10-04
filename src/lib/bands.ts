@@ -26,14 +26,17 @@ export const PM25_BANDS: Band[] = [
   { severity: "hazardous", label: "Very high", min: 251, max: Infinity },
 ];
 
+/** AQI categories. Two share the "unhealthy" severity (colour, icon, mood), so alerts rank by level instead. */
+export type AqiLevel = Severity | "unhealthy-sensitive";
+
 // US EPA Air Quality Index (2024 PM2.5 breakpoints). NEA publishes no AQI, so the app derives it from 1-hr PM2.5.
-export const AQI_BANDS: Band[] = [
-  { severity: "good", label: "Good", min: 0, max: 50 },
-  { severity: "moderate", label: "Moderate", min: 51, max: 100 },
-  { severity: "unhealthy", label: "Unhealthy (sensitive)", min: 101, max: 150 },
-  { severity: "unhealthy", label: "Unhealthy", min: 151, max: 200 },
-  { severity: "very-unhealthy", label: "Very unhealthy", min: 201, max: 300 },
-  { severity: "hazardous", label: "Hazardous", min: 301, max: Infinity },
+export const AQI_BANDS: (Band & { level: AqiLevel })[] = [
+  { level: "good", severity: "good", label: "Good", min: 0, max: 50 },
+  { level: "moderate", severity: "moderate", label: "Moderate", min: 51, max: 100 },
+  { level: "unhealthy-sensitive", severity: "unhealthy", label: "Unhealthy (sensitive)", min: 101, max: 150 },
+  { level: "unhealthy", severity: "unhealthy", label: "Unhealthy", min: 151, max: 200 },
+  { level: "very-unhealthy", severity: "very-unhealthy", label: "Very unhealthy", min: 201, max: 300 },
+  { level: "hazardous", severity: "hazardous", label: "Hazardous", min: 301, max: Infinity },
 ];
 
 /** PM2.5 concentration (µg/m³) to AQI: [lowest concentration, highest concentration, lowest AQI, highest AQI]. */
@@ -56,7 +59,7 @@ export function aqiFromPm25(pm25: number | null | undefined): number | null {
   return Math.round(((iHi - iLo) / (cHi - cLo)) * (c - cLo) + iLo);
 }
 
-export function bandFor(bands: Band[], value: number | null | undefined): Band | null {
+export function bandFor<B extends Band>(bands: B[], value: number | null | undefined): B | null {
   if (value == null) return null;
   return bands.find((b) => value <= b.max) ?? bands[bands.length - 1];
 }
@@ -86,6 +89,20 @@ export function pm25GuideFor(severity: Severity, profile: Profile, when = "for t
   };
   const advice = guide[severity]?.[profile];
   return advice ? [advice, when].filter(Boolean).join(" ") : "Continue with normal activities";
+}
+
+/**
+ * US EPA advice for an AQI category, for the alert notifications.
+ * Source: AirNow, "Air Quality Guide for Particle Pollution" (airnow.gov).
+ */
+export function aqiGuideFor(level: AqiLevel, profile: Profile): string {
+  const guide: Partial<Record<AqiLevel, Record<Profile, string>>> = {
+    "unhealthy-sensitive": { general: "It's fine to be active outdoors", vulnerable: "Reduce long or intense outdoor activity" },
+    unhealthy: { general: "Reduce long or intense outdoor activity", vulnerable: "Avoid long or intense outdoor activity" },
+    "very-unhealthy": { general: "Avoid long or intense outdoor activity", vulnerable: "Avoid all physical activity outdoors" },
+    hazardous: { general: "Avoid all physical activity outdoors", vulnerable: "Stay indoors and keep activity levels low" },
+  };
+  return guide[level]?.[profile] ?? "Continue with normal activities";
 }
 
 interface Advisory {

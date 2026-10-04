@@ -1,10 +1,10 @@
 import webpush from "web-push";
-import { PM25_BANDS, PROFILE_IDS, type Profile, type Severity } from "./bands";
+import { AQI_BANDS, PROFILE_IDS, type AqiLevel, type Profile } from "./bands";
 import { pool } from "./db";
 import { REGIONS, type Region } from "./schema";
 
-/** Severities a subscriber can choose to be alerted at: NEA's 1-hr PM2.5 bands above Normal. */
-export const ALERT_LEVELS = PM25_BANDS.slice(1).map((b) => b.severity);
+/** Levels a subscriber can choose to be alerted at: the 1-hr AQI categories from "Unhealthy (sensitive)" up. */
+export const ALERT_LEVELS = AQI_BANDS.slice(2).map((b) => b.level);
 const MAX_SUBSCRIPTIONS = 10_000;
 
 /**
@@ -19,7 +19,7 @@ export interface Subscription {
   p256dh: string;
   auth: string;
   region: Region;
-  level: Severity;
+  level: AqiLevel;
   profile: Profile;
   /** Also notify when a new version of the app goes live. */
   updates: boolean;

@@ -2,7 +2,7 @@
 
 import { Dialog } from "radix-ui";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { PM25_BANDS, PROFILE_IDS, PROFILES, type Profile, type Severity } from "@/lib/bands";
+import { AQI_BANDS, PROFILE_IDS, PROFILES, type AqiLevel, type Profile } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
 import { isIos } from "@/lib/platform";
 import { REGIONS, type Region } from "@/lib/schema";
@@ -11,8 +11,8 @@ import { AreaSelect } from "./area-select";
 import { Segmented } from "./segmented";
 import { chromeButton, pill } from "./styles";
 
-const LEVELS = PM25_BANDS.slice(1).map((b) => ({
-  value: b.severity,
+const LEVELS = AQI_BANDS.slice(2).map((b) => ({
+  value: b.level,
   label: (
     <>
       {b.label} <span className="opacity-70">{b.min}+</span>
@@ -42,14 +42,14 @@ async function callApi(method: "POST" | "DELETE", body: unknown) {
 }
 
 /**
- * Header bell that opens the haze-alert settings: pick an area, the 1-hr PM2.5 band to be alerted at,
+ * Header bell that opens the haze-alert settings: pick an area, the 1-hr AQI level to be alerted at,
  * and whose advice to show. Subscribing asks for notification permission and registers this
  * browser's push subscription with the server.
  */
 export function AlertsButton({ vapidKey }: { vapidKey: string }) {
   const support = useSyncExternalStore(noSubscribe, detectSupport, () => null);
   const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
-  const [level, setLevel] = useStoredChoice<Severity>("hazelite:alert-level", LEVELS.map((l) => l.value), "unhealthy");
+  const [level, setLevel] = useStoredChoice<AqiLevel>("hazelite:alert-level", LEVELS.map((l) => l.value), "unhealthy");
   const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");
   const [updates, setUpdates] = useStoredChoice("hazelite:update-alerts", ["on", "off"], "off");
   const [subscribed, setSubscribed] = useState(false);
@@ -124,7 +124,7 @@ export function AlertsButton({ vapidKey }: { vapidKey: string }) {
             </Dialog.Close>
           </div>
           <Dialog.Description className="mt-1 text-ink-2">
-            Get a notification when 1-hr PM2.5 in your area reaches the level you choose, and when it clears.
+            Get a notification when 1-hr AQI in your area reaches the level you choose, and when it clears.
           </Dialog.Description>
 
           {support === "ios-install" ? (
