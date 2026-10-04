@@ -26,7 +26,7 @@ export function RegionMap({
   /** Regions where NEA's 2-hour forecast has haze in at least one area. */
   hazeSoon?: Region[];
 }) {
-  const other = metric.id === "psi" ? METRICS.pm25 : METRICS.psi;
+  const other = metric.id === "psi" ? METRICS.aqi : METRICS.psi;
   return (
     <div className="grid grid-cols-3 grid-rows-3 gap-2" role="group" aria-label={`${metric.name} by region`}>
       {readings.map((r) => {

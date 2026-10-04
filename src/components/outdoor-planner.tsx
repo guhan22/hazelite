@@ -1,20 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import { bandFor, pm25GuideFor, PM25_BANDS, PROFILE_IDS, PROFILES, type Profile } from "@/lib/bands";
 import { titleCase } from "@/lib/format";
-import { nearestRegion } from "@/lib/geo";
 import type { LatestReading } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { useStoredChoice } from "@/lib/use-stored-choice";
 import { AreaSelect } from "./area-select";
 import { Card } from "./card";
 import { Segmented } from "./segmented";
-import { pill } from "./styles";
 import { StatusIcon } from "./status";
-
-// Rough bounding box for mainland Singapore and its nearby islands.
-const inSingapore = (lat: number, lon: number) => lat > 1.15 && lat < 1.48 && lon > 103.6 && lon < 104.1;
 
 /** "Can I go out?": NEA's next-hour activity guide for the viewer's area and health profile. */
 export function OutdoorPlanner({
@@ -29,21 +23,6 @@ export function OutdoorPlanner({
 }) {
   const [profile, setProfile] = useStoredChoice<Profile>("hazelite:profile", PROFILE_IDS, "general");
   const [region, setRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
-  const [locating, setLocating] = useState<string | null>(null);
-
-  const locate = () => {
-    if (!("geolocation" in navigator)) return setLocating("Location isn't available in this browser.");
-    setLocating("Finding your location…");
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        if (!inSingapore(coords.latitude, coords.longitude)) return setLocating("You seem to be outside Singapore.");
-        setRegion(nearestRegion(coords.latitude, coords.longitude));
-        setLocating(null);
-      },
-      () => setLocating("Couldn't get your location. Pick your area instead."),
-      { maximumAge: 10 * 60_000, timeout: 10_000 },
-    );
-  };
 
   const pm25 = readings.find((r) => r.region === region)?.pm25_1h ?? null;
   const band = bandFor(PM25_BANDS, pm25);
@@ -54,15 +33,7 @@ export function OutdoorPlanner({
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
         <Segmented label="Health profile" value={profile} options={PROFILES} onChange={setProfile} />
         <AreaSelect value={region} onChange={setRegion} className="ml-auto" />
-        <button type="button" onClick={locate} className={pill(false)}>
-          Use my location
-        </button>
       </div>
-      {locating && (
-        <p className="mt-2 text-xs text-muted" role="status">
-          {locating}
-        </p>
-      )}
 
       <div className="mt-4 flex items-start gap-3 rounded-lg border border-border p-4" aria-live="polite">
         {band && <StatusIcon severity={band.severity} size="1.5rem" />}

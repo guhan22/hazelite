@@ -26,6 +26,36 @@ export const PM25_BANDS: Band[] = [
   { severity: "hazardous", label: "Very high", min: 251, max: Infinity },
 ];
 
+// US EPA Air Quality Index (2024 PM2.5 breakpoints). NEA publishes no AQI, so the app derives it from 1-hr PM2.5.
+export const AQI_BANDS: Band[] = [
+  { severity: "good", label: "Good", min: 0, max: 50 },
+  { severity: "moderate", label: "Moderate", min: 51, max: 100 },
+  { severity: "unhealthy", label: "Unhealthy (sensitive)", min: 101, max: 150 },
+  { severity: "unhealthy", label: "Unhealthy", min: 151, max: 200 },
+  { severity: "very-unhealthy", label: "Very unhealthy", min: 201, max: 300 },
+  { severity: "hazardous", label: "Hazardous", min: 301, max: Infinity },
+];
+
+/** PM2.5 concentration (µg/m³) to AQI: [lowest concentration, highest concentration, lowest AQI, highest AQI]. */
+const PM25_AQI_BREAKPOINTS = [
+  [0, 9, 0, 50],
+  [9.1, 35.4, 51, 100],
+  [35.5, 55.4, 101, 150],
+  [55.5, 125.4, 151, 200],
+  [125.5, 225.4, 201, 300],
+  [225.5, 325.4, 301, 500],
+] as const;
+
+/** US EPA AQI for a PM2.5 concentration (truncated to 0.1 µg/m³, as the EPA does), capped at 500. */
+export function aqiFromPm25(pm25: number | null | undefined): number | null {
+  if (pm25 == null) return null;
+  const c = Math.floor(Math.max(0, pm25) * 10) / 10;
+  const bp = PM25_AQI_BREAKPOINTS.find(([, hi]) => c <= hi);
+  if (!bp) return 500;
+  const [cLo, cHi, iLo, iHi] = bp;
+  return Math.round(((iHi - iLo) / (cHi - cLo)) * (c - cLo) + iLo);
+}
+
 export function bandFor(bands: Band[], value: number | null | undefined): Band | null {
   if (value == null) return null;
   return bands.find((b) => value <= b.max) ?? bands[bands.length - 1];

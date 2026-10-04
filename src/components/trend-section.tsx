@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PM25_BANDS, PSI_BANDS, thresholdsFor, type Band } from "@/lib/bands";
+import { aqiFromPm25, AQI_BANDS, PM25_BANDS, PSI_BANDS, thresholdsFor, type Band } from "@/lib/bands";
 import type { Pm25Forecast } from "@/lib/forecast";
 import { titleCase } from "@/lib/format";
 import type { MetricId } from "@/lib/metrics";
@@ -14,27 +14,55 @@ import { TrendChart, type ChartPoint, type ChartSeries } from "./trend-chart";
 const REGION_SERIES: ChartSeries[] = DISPLAY_ORDER.map((r, i) => ({ key: r, label: titleCase(r), color: `var(--series-${i + 1})` }));
 const FORECAST_SERIES: ChartSeries = { key: "forecast", label: "Forecast (model)", color: "var(--ink-2)", dashed: true };
 
-const CHARTS: Record<MetricId, { title: string; subtitle: string; unit: string; bands: Band[] }> = {
-  pm25: { title: "1-hr PM2.5 by region", subtitle: "Hourly fine particulate concentration, µg/m³", unit: "µg/m³", bands: PM25_BANDS },
-  psi: { title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS },
+type Values = NonNullable<SeriesPoint["values"][keyof SeriesPoint["values"]]>;
+
+const CHARTS: Record<
+  MetricId,
+  {
+    title: string;
+    subtitle: string;
+    unit: string;
+    bands: Band[];
+    value: (v: Values) => number | null;
+    /** Converts the model's PM2.5 forecast to this chart's measure; absent means no forecast line. */
+    fromPm25?: (pm25: number) => number | null;
+  }
+> = {
+  aqi: {
+    title: "1-hr AQI by region",
+    subtitle: "US EPA Air Quality Index from hourly PM2.5",
+    unit: "AQI",
+    bands: AQI_BANDS,
+    value: (v) => aqiFromPm25(v.pm25),
+    fromPm25: aqiFromPm25,
+  },
+  pm25: {
+    title: "1-hr PM2.5 by region",
+    subtitle: "Hourly fine particulate concentration, µg/m³",
+    unit: "µg/m³",
+    bands: PM25_BANDS,
+    value: (v) => v.pm25,
+    fromPm25: (pm25) => pm25,
+  },
+  psi: { title: "24-hr PSI by region", subtitle: "Rolling 24-hour Pollutant Standards Index", unit: "24-hr PSI", bands: PSI_BANDS, value: (v) => v.psi },
 };
 
 /**
  * Appends the model's PM2.5 forecast as an extra dashed series, starting at the latest reading so the
  * line continues from "now". Looks ahead half the chart's span, up to 48 hours.
  */
-function withForecast(points: ChartPoint[], forecast: Pm25Forecast, spanHours: number): ChartPoint[] {
+function withForecast(points: ChartPoint[], forecast: Pm25Forecast, spanHours: number, convert: (pm25: number) => number | null): ChartPoint[] {
   const last = points.at(-1)?.t ?? 0;
   const horizon = last + Math.min(48, spanHours / 2) * HOUR;
-  const byTime = new Map(forecast.points.map((p) => [p.t, p.v]));
+  const byTime = new Map(forecast.points.map((p) => [p.t, convert(p.v)]));
   const blanks = REGION_SERIES.map(() => null);
   return [
     ...points.map((p) => ({ t: p.t, v: [...p.v, p.t === last ? (byTime.get(p.t) ?? null) : null] })),
-    ...forecast.points.filter((p) => p.t > last && p.t <= horizon).map((p) => ({ t: p.t, v: [...blanks, p.v] })),
+    ...forecast.points.filter((p) => p.t > last && p.t <= horizon).map((p) => ({ t: p.t, v: [...blanks, byTime.get(p.t) ?? null] })),
   ];
 }
 
-/** Time-range picker and the trend chart, which follows the Now / 24-hr PSI toggle. */
+/** Time-range picker and the trend chart, which follows the 1-hr AQI / 1-hr PM2.5 / 24-hr PSI toggle. */
 export function TrendSection({
   series,
   range,
@@ -51,10 +79,10 @@ export function TrendSection({
 
   const chart = (field: MetricId) => {
     const c = CHARTS[field];
-    let points: ChartPoint[] = series.map((p) => ({ t: p.t, v: DISPLAY_ORDER.map((r) => p.values[r]?.[field] ?? null) }));
+    let points: ChartPoint[] = series.map((p) => ({ t: p.t, v: DISPLAY_ORDER.map((r) => { const v = p.values[r]; return v ? c.value(v) : null; }) }));
     // A daily-maximum chart has no room for an hourly forecast.
-    const forecasting = field === "pm25" && bucket === "hour" && forecast != null;
-    if (forecasting) points = withForecast(points, forecast, hours);
+    const forecasting = c.fromPm25 != null && bucket === "hour" && forecast != null;
+    if (forecasting) points = withForecast(points, forecast, hours, c.fromPm25!);
     return (
       <Card
         title={c.title}
@@ -89,7 +117,7 @@ export function TrendSection({
           </Link>
         ))}
       </nav>
-      <ByMetric views={{ pm25: chart("pm25"), psi: chart("psi") }} />
+      <ByMetric views={{ aqi: chart("aqi"), pm25: chart("pm25"), psi: chart("psi") }} />
     </div>
   );
 }

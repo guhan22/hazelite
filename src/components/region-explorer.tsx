@@ -8,8 +8,10 @@ import type { SeriesPoint } from "@/lib/queries";
 import { REGIONS, type Region } from "@/lib/schema";
 import { worstBy } from "@/lib/summary";
 import { tipsFor } from "@/lib/tips";
+import { useStoredChoice } from "@/lib/use-stored-choice";
 import type { Wind } from "@/lib/wind";
 import { HazeOverlay } from "./haze-overlay";
+import { LocateButton } from "./locate-button";
 import { MOOD_LABEL } from "./mascot";
 import { MetricToggle, useMetric } from "./metric-toggle";
 import { PlayfulMascot } from "./playful-mascot";
@@ -40,6 +42,8 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
   const [metricId] = useMetric();
   const [frame, setFrame] = useState<number | null>(null);
   const [tip, setTip] = useState<number | null>(null);
+  // "Use my location" also sets the area in "Can I go out?".
+  const [, setPlannerRegion] = useStoredChoice<Region>("hazelite:region", REGIONS, "central");
   const onFrame = useCallback((i: number | null) => setFrame(i), []);
 
   const metric = METRICS[metricId];
@@ -54,10 +58,13 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
 
   // Sharing always describes the live reading, even mid-replay.
   const live = focusIn(readings);
+  const liveAqi = live ? METRICS.aqi.value(live) : null;
+  const aqiBand = bandFor(METRICS.aqi.bands, liveAqi);
   const pmBand = bandFor(METRICS.pm25.bands, live?.pm25_1h);
   const psiBand = bandFor(METRICS.psi.bands, live?.psi24h);
   const shareText = live
-    ? `Haze check, ${selected ? titleCase(selected) : "Singapore"}: 1-hr PM2.5 ${live.pm25_1h ?? "–"} µg/m³ (${pmBand?.label ?? "no data"}), ` +
+    ? `Haze check, ${selected ? titleCase(selected) : "Singapore"}: 1-hr AQI ${liveAqi ?? "–"} (${aqiBand?.label ?? "no data"}), ` +
+      `1-hr PM2.5 ${live.pm25_1h ?? "–"} µg/m³ (${pmBand?.label ?? "no data"}), ` +
       `24-hr PSI ${live.psi24h ?? "–"} (${psiBand?.label ?? "no data"}). ` +
       (pmBand ? `${pm25GuideFor(pmBand.severity, "general")}.` : "")
     : "Singapore haze monitor";
@@ -66,7 +73,16 @@ export function RegionExplorer({ readings, replay, wind, hazeSoon }: Props) {
     <div className="flex flex-col gap-4">
       <HazeOverlay pm25={focus?.pm25_1h ?? null} />
 
-      <MetricToggle />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <MetricToggle />
+        <LocateButton
+          className="ml-auto"
+          onLocate={(r) => {
+            setSelected(r);
+            setPlannerRegion(r);
+          }}
+        />
+      </div>
 
       <div className="flex items-end gap-3">
         <PlayfulMascot

@@ -12,7 +12,7 @@ import { Notice, Shell } from "@/components/shell";
 import { StatusLabel } from "@/components/status";
 import { Tabs, type Tab } from "@/components/tabs";
 import { TrendSection } from "@/components/trend-section";
-import { advisoryFor, bandFor, PM25_BANDS, PSI_BANDS, type Band } from "@/lib/bands";
+import { advisoryFor, aqiFromPm25, AQI_BANDS, bandFor, PM25_BANDS, PSI_BANDS, type Band } from "@/lib/bands";
 import { getDashboard } from "@/lib/dashboard";
 import { forecastMax } from "@/lib/forecast";
 import { titleCase } from "@/lib/format";
@@ -60,6 +60,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const observedAt = latest[0].observedAt;
   const psi = range(latest.map((r) => r.psi24h));
   const pm25 = range(latest.map((r) => r.pm25_1h));
+  const aqi = pm25 && { min: aqiFromPm25(pm25.min)!, max: aqiFromPm25(pm25.max)! };
+  const aqiBand = bandFor(AQI_BANDS, aqi?.max);
   const psiBand = bandFor(PSI_BANDS, psi?.max);
   const pmBand = bandFor(PM25_BANDS, pm25?.max);
   const delta = psi && psiDayAgo != null ? psi.max - psiDayAgo : null;
@@ -89,8 +91,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </section>
 
           <section aria-label="Air quality now" className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-5 sm:p-6 lg:col-start-2 lg:row-start-1">
-            <div className="grid grid-cols-2 gap-5">
-              <Headline title="Right now · 1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
+            {/* 1-hr AQI leads: a full row on phones, then three across. */}
+            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
+              <Headline title="Right now · 1-hr AQI" value={formatRange(aqi)} band={aqiBand} className="col-span-2 sm:col-span-1" />
+              <Headline title="1-hr PM2.5" value={formatRange(pm25)} unit="µg/m³" band={pmBand} />
               <Headline title="24-hr PSI" value={formatRange(psi)} band={psiBand} />
             </div>
 
@@ -162,7 +166,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   return (
     <Shell observedAt={observedAt} refreshFailed={refreshFailed}>
       <AutoRefresh />
-      {/* The Now / 24-hr PSI choice is shared by the explorer (Now) and the chart (Trends). */}
+      {/* The 1-hr AQI / 1-hr PM2.5 / 24-hr PSI choice is shared by the explorer (Now) and the chart (Trends). */}
       <MetricProvider>
         <Tabs tabs={tabs} initial={parseTab(params.tab)} />
       </MetricProvider>
@@ -170,9 +174,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   );
 }
 
-function Headline({ title, value, unit, band }: { title: string; value: string; unit?: string; band: Band | null }) {
+function Headline({ title, value, unit, band, className }: { title: string; value: string; unit?: string; band: Band | null; className?: string }) {
   return (
-    <div>
+    <div className={className}>
       <h2 className="text-sm font-medium text-ink-2">{title}</h2>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-4xl font-semibold tracking-tight sm:text-5xl">{value}</span>
