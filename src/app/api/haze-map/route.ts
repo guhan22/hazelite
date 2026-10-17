@@ -1,4 +1,5 @@
 import { getFeeds } from "@/lib/feeds";
+import { publicJson } from "@/lib/route";
 
 export const dynamic = "force-dynamic";
 
@@ -6,5 +7,5 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const { regional, fireMap } = await getFeeds(["regional", "fireMap"]);
   // Feeds refresh every few hours, so a few minutes of caching costs nothing.
-  return Response.json({ weather: regional, fires: fireMap }, { headers: { "Cache-Control": "public, max-age=300" } });
+  return publicJson({ weather: regional, fires: fireMap });
 }

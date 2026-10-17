@@ -29,3 +29,7 @@ export function httpsUrl(v: string): string | null {
 
 export const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 export const logError = (what: string, err: unknown) => console.error(`[hazelite] ${what} failed:`, errorMessage(err));
+
+/** Logs every rejected result of a Promise.allSettled, labelled by `what` (or by index). */
+export const logRejected = (results: PromiseSettledResult<unknown>[], what: string | ((i: number) => string)) =>
+  results.forEach((r, i) => r.status === "rejected" && logError(typeof what === "string" ? what : what(i), r.reason));

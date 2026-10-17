@@ -2,6 +2,7 @@
 // paths traced along the 2,500 ft wind, and the fire clusters ("epicentres") that matter most.
 
 import type { FireMap } from "./fires";
+import { clamp, toRad } from "./geo";
 import { GRID, type RegionalWeather } from "./regional";
 import { HOUR } from "./time";
 
@@ -19,8 +20,6 @@ export interface Field {
   pm: Float32Array;
 }
 
-const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
-const toRad = (d: number) => (d * Math.PI) / 180;
 
 /** First and last frame times (epoch ms). */
 export const timeSpan = (w: RegionalWeather) => [w.t0, w.t0 + (w.frames.length - 1) * w.stepHours * HOUR] as const;

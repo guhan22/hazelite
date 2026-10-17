@@ -45,16 +45,7 @@ export function TimeMachine({
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2">
-      <button
-        type="button"
-        onClick={togglePlay}
-        aria-label={playing ? "Pause replay" : "Replay the last 72 hours"}
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-ink text-page transition-transform active:scale-90"
-      >
-        <svg width="0.875rem" height="0.875rem" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          {playing ? <path d="M6 4h4v16H6zM14 4h4v16h-4z" /> : <path d="M7 4.5v15l13-7.5z" />}
-        </svg>
-      </button>
+      <PlayButton playing={playing} onClick={togglePlay} label="Replay the last 72 hours" />
       <input
         type="range"
         min={0}
@@ -88,5 +79,21 @@ export function TimeMachine({
         </button>
       )}
     </div>
+  );
+}
+
+/** Round play/pause toggle shared by the replays. `label` names what playing does. */
+export function PlayButton({ playing, onClick, label }: { playing: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={playing ? "Pause" : label}
+      className="grid size-8 shrink-0 place-items-center rounded-full bg-ink text-page transition-transform active:scale-90"
+    >
+      <svg width="0.875rem" height="0.875rem" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        {playing ? <path d="M6 4h4v16H6zM14 4h4v16h-4z" /> : <path d="M7 4.5v15l13-7.5z" />}
+      </svg>
+    </button>
   );
 }

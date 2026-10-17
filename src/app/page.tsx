@@ -26,7 +26,7 @@ import { HOUR, sgtDayStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-const TAB_IDS = ["now", "forecast", "trends", "map"];
+const TAB_IDS = ["now", "forecast", "map", "trends"];
 /** Allow-lists the `tab` query parameter. */
 const parseTab = (value: unknown) => (typeof value === "string" && TAB_IDS.includes(value) ? value : TAB_IDS[0]);
 
@@ -147,6 +147,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       ),
     },
     {
+      id: "map",
+      label: "Map",
+      content: <HazeMap key="map" />,
+    },
+    {
       id: "trends",
       label: "Trends",
       content: (
@@ -155,11 +160,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <PollutantTable readings={inOrder(DISPLAY_ORDER)} observedAt={observedAt} />
         </div>
       ),
-    },
-    {
-      id: "map",
-      label: "Map",
-      content: <HazeMap key="map" />,
     },
   ];
 

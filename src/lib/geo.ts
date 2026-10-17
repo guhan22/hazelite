@@ -1,5 +1,8 @@
 import { REGIONS, type Region } from "./schema";
 
+export const toRad = (deg: number) => (deg * Math.PI) / 180;
+export const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+
 /** NEA's label location for each reporting region (from the API's regionMetadata). */
 const REGION_LOCATIONS: Record<Region, { latitude: number; longitude: number }> = {
   north: { latitude: 1.41803, longitude: 103.82 },

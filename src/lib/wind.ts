@@ -1,4 +1,4 @@
-import { nearestRegion } from "./geo";
+import { nearestRegion, toRad } from "./geo";
 import type { Region } from "./schema";
 
 export interface StationWind {
@@ -18,7 +18,6 @@ export interface Wind {
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const KNOTS_TO_KMH = 1.852;
-const toRad = (d: number) => (d * Math.PI) / 180;
 
 /**
  * Averages station winds. Direction is a vector mean (so 350° and 10° average to 0°, not 180°);

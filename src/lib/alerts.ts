@@ -1,7 +1,7 @@
 import { aqiFromPm25, aqiGuideFor, AQI_BANDS, bandFor, type AqiLevel } from "./bands";
 import { pool } from "./db";
 import { titleCase } from "./format";
-import { logError } from "./http";
+import { logError, logRejected } from "./http";
 import { pushConfigured, send, settleInBatches, type Notice, type Subscription } from "./push";
 import { getLatest } from "./queries";
 
@@ -68,7 +68,7 @@ export async function sendAlerts(): Promise<void> {
         if (rowCount && action !== "track") await send(sub, notice(action, sub, value!));
       },
     );
-    results.forEach((r) => r.status === "rejected" && logError("alert", r.reason));
+    logRejected(results, "alert");
   } catch (err) {
     logError("alerts", err);
   }
@@ -107,6 +107,6 @@ export async function announceRelease(version: string, note: string): Promise<nu
     tag: "hazelite-update",
   };
   const results = await settleInBatches(rows, (sub) => send(sub, update));
-  results.forEach((r) => r.status === "rejected" && logError("update notice", r.reason));
+  logRejected(results, "update notice");
   return results.filter((r) => r.status === "fulfilled" && r.value === true).length;
 }

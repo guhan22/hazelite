@@ -1,7 +1,7 @@
 import { pool } from "./db";
 import { fetchFireMap, fetchHotspots } from "./fires";
 import { fetchPm25Forecast } from "./forecast";
-import { errorMessage, logError } from "./http";
+import { errorMessage, logRejected } from "./http";
 import { fetchNeaForecast } from "./nea";
 import { fetchRegionalWeather } from "./regional";
 
@@ -62,7 +62,7 @@ export async function refreshFeeds(): Promise<void> {
       return enabled && !enabled() ? null : runIfDue(name, every, fetch);
     }),
   );
-  results.forEach((r, i) => r.status === "rejected" && logError(`${NAMES[i]} feed`, r.reason));
+  logRejected(results, (i) => `${NAMES[i]} feed`);
 }
 
 /** The latest stored snapshot of each named feed (null if never fetched). */

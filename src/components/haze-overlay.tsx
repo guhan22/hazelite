@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { animateWhileVisible, fitCanvas, onThemeChange, prefersReducedMotion, rgbOf } from "@/lib/canvas";
 
 interface Puff {
   x: number;
@@ -35,14 +36,12 @@ export function HazeOverlay({ pm25 }: { pm25: number | null }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!canvas) return;
+    const reduced = prefersReducedMotion();
     const puffs: Puff[] = [];
     let w = 0;
     let h = 0;
-    let frame = 0;
-    let visible = true;
+    let ctx: CanvasRenderingContext2D;
     let color = "150 135 120";
 
     const spawn = (): Puff => ({
@@ -55,14 +54,10 @@ export function HazeOverlay({ pm25 }: { pm25: number | null }) {
     });
 
     const resize = () => {
-      const dpr = Math.min(devicePixelRatio || 1, 2);
-      w = canvas.clientWidth;
-      h = canvas.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      [w, h] = [canvas.clientWidth, canvas.clientHeight];
+      ctx = fitCanvas(canvas, w, h);
       // The canvas's CSS colour is the --haze token, already resolved for light/dark by the browser.
-      color = getComputedStyle(canvas).color.match(/[\d.]+/g)?.slice(0, 3).join(" ") || color;
+      color = rgbOf(canvas, color);
     };
 
     const draw = () => {
@@ -96,16 +91,6 @@ export function HazeOverlay({ pm25 }: { pm25: number | null }) {
       }
     };
 
-    const loop = () => {
-      draw();
-      // Clean air with nothing left to fade out: stop until the target rises again.
-      const idle = puffs.length === 0 && targetRef.current === 0;
-      frame = visible && !document.hidden && !idle ? requestAnimationFrame(loop) : 0;
-    };
-    const wake = () => {
-      if (!frame && visible && !document.hidden) frame = requestAnimationFrame(loop);
-    };
-
     // No motion: settle the haze at its target straight away and draw a single still frame.
     const settle = () => {
       puffs.length = Math.min(puffs.length, targetRef.current);
@@ -113,38 +98,29 @@ export function HazeOverlay({ pm25 }: { pm25: number | null }) {
       for (const p of puffs) p.a = alphaRef.current;
       draw();
     };
-    refreshRef.current = reduced ? settle : wake;
 
     resize();
+    // Clean air with nothing left to fade out: idle until the target rises again.
+    const animation = reduced
+      ? null
+      : animateWhileVisible(canvas, () => (draw(), puffs.length > 0 || targetRef.current > 0));
+    refreshRef.current = animation ? animation.wake : settle;
     refreshRef.current();
 
+    // Resizes and theme changes (which swap the haze colour) redraw a still frame straight away.
     const repaint = () => {
       resize();
       if (reduced) draw();
     };
     const ro = new ResizeObserver(repaint);
     ro.observe(canvas);
-    const io = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      if (!reduced) wake();
-    });
-    io.observe(canvas);
-    const onVisibility = () => !reduced && wake();
-    document.addEventListener("visibilitychange", onVisibility);
-    // Theme changes (toggle or OS setting) swap the haze colour.
-    const mo = new MutationObserver(repaint);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    const scheme = matchMedia("(prefers-color-scheme: dark)");
-    scheme.addEventListener("change", repaint);
+    const unsubscribeTheme = onThemeChange(repaint);
 
     return () => {
-      cancelAnimationFrame(frame);
+      animation?.stop();
       ro.disconnect();
-      io.disconnect();
-      mo.disconnect();
-      scheme.removeEventListener("change", repaint);
+      unsubscribeTheme();
       refreshRef.current = () => {};
-      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 

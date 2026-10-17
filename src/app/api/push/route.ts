@@ -1,27 +1,8 @@
 import { logError } from "@/lib/http";
 import { deleteSubscription, parseEndpoint, parseSubscription, pushConfigured, saveSubscription } from "@/lib/push";
+import { fail, readJson } from "@/lib/route";
 
 export const dynamic = "force-dynamic";
-
-const MAX_BODY = 4096;
-const fail = (status: number, error: string) => Response.json({ error }, { status });
-
-/**
- * Reads a small same-origin JSON body. Cross-site requests are refused (browsers send Sec-Fetch-Site),
- * and requiring JSON keeps a plain HTML form on another site from posting here.
- */
-async function readJson(request: Request): Promise<unknown | Response> {
-  const site = request.headers.get("sec-fetch-site");
-  if (site && site !== "same-origin") return fail(403, "forbidden");
-  if (!request.headers.get("content-type")?.startsWith("application/json")) return fail(415, "expected JSON");
-  const text = await request.text();
-  if (text.length > MAX_BODY) return fail(413, "too large");
-  try {
-    return JSON.parse(text);
-  } catch {
-    return fail(400, "invalid JSON");
-  }
-}
 
 /** Subscribes this browser to haze alerts, or updates its choices. */
 export async function POST(request: Request) {

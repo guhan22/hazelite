@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Severity } from "@/lib/bands";
+import { prefersReducedMotion } from "@/lib/canvas";
 import { Mascot } from "./mascot";
 
 /** The mascot as a toy: blinks now and then, and wiggles when tapped (the parent shows a tip). */
@@ -10,7 +11,7 @@ export function PlayfulMascot({ severity, label, onPoke }: { severity: Severity;
   const [wiggles, setWiggles] = useState(0);
 
   useEffect(() => {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (prefersReducedMotion()) return;
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
       timer = setTimeout(() => {

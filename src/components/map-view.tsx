@@ -1,59 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { fitCanvas, rgbOf, useReducedMotion, useThemeVersion } from "@/lib/canvas";
 import type { FireMap } from "@/lib/fires";
-import { SINGAPORE, valueAt, type Epicentre, type Field, type LonLat, type PathPoint } from "@/lib/flow";
-import { GRID } from "@/lib/regional";
+import { SINGAPORE, type Epicentre, type Field, type LonLat, type PathPoint } from "@/lib/flow";
 import { BORDER_PATH, LAND_PATH } from "@/lib/sea-map";
 import { HOUR } from "@/lib/time";
+import { animateWind, clampView, drawFires, drawSmoke, drawWindArrows, HOME, project, zoomView, type Projection, type View } from "./map-layers";
 import { chromeButton } from "./styles";
 
 export type Layer = "wind" | "smoke" | "fires" | "paths";
-
-/** What part of the map is on screen: the centre (lon, lat) and the width in degrees of longitude. */
-interface View {
-  cx: number;
-  cy: number;
-  span: number;
-}
-
-// The view stays inside the regional grid, so wind and smoke always cover it.
-const EXTENT = { w: GRID.lon0, e: GRID.lon0 + (GRID.nx - 1) * GRID.step, s: GRID.lat0, n: GRID.lat0 + (GRID.ny - 1) * GRID.step };
-const MIN_SPAN = 2.5;
-const MAX_SPAN_X = 34;
-const MAX_SPAN_Y = 26;
-/** Singapore in the middle, zoomed out as far as the map allows. */
-const HOME: View = { cx: SINGAPORE.lon, cy: SINGAPORE.lat, span: Infinity };
-
-const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
-
-/** `aspect` is height / width. */
-function clampView(v: View, aspect: number): View {
-  const span = clamp(v.span, MIN_SPAN, Math.min(MAX_SPAN_X, MAX_SPAN_Y / aspect));
-  const spanY = span * aspect;
-  return {
-    cx: clamp(v.cx, EXTENT.w + span / 2, EXTENT.e - span / 2),
-    cy: clamp(v.cy, EXTENT.s + spanY / 2, EXTENT.n - spanY / 2),
-    span,
-  };
-}
-
-/** Equirectangular: near the equator a degree of longitude and of latitude are nearly the same distance. */
-function project(v: View, w: number, h: number) {
-  const k = w / v.span; // pixels per degree
-  const left = v.cx - v.span / 2;
-  const top = v.cy + h / k / 2;
-  return {
-    k,
-    left,
-    top,
-    x: (lon: number) => (lon - left) * k,
-    y: (lat: number) => (top - lat) * k,
-    lon: (x: number) => left + x / k,
-    lat: (y: number) => top - y / k,
-  };
-}
-type Projection = ReturnType<typeof project>;
 
 /** Place labels; `minK` hides one until zoomed in to that many pixels per degree. */
 const LABELS: { name: string; lon: number; lat: number; sea?: boolean; minK?: number }[] = [
@@ -73,67 +29,6 @@ const LABELS: { name: string; lon: number; lat: number; sea?: boolean; minK?: nu
   { name: "Indian Ocean", lon: 93.5, lat: -4.5, sea: true },
 ];
 const RINGS_KM = [250, 500, 1000];
-
-/** A CSS colour (e.g. a token resolved for the current theme) as "r g b". */
-const rgbOf = (el: Element) => getComputedStyle(el).color.match(/[\d.]+/g)?.slice(0, 3).join(" ") ?? "128 128 128";
-
-/** Bumps whenever the theme changes (toggle or OS setting), so canvases re-read their colours. */
-function useThemeVersion() {
-  const [version, setVersion] = useState(0);
-  useEffect(() => {
-    const bump = () => setVersion((v) => v + 1);
-    const mo = new MutationObserver(bump);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    const scheme = matchMedia("(prefers-color-scheme: dark)");
-    scheme.addEventListener("change", bump);
-    return () => {
-      mo.disconnect();
-      scheme.removeEventListener("change", bump);
-    };
-  }, []);
-  return version;
-}
-
-const REDUCED = "(prefers-reduced-motion: reduce)";
-const subscribeReduced = (onChange: () => void) => {
-  const mq = matchMedia(REDUCED);
-  mq.addEventListener("change", onChange);
-  return () => mq.removeEventListener("change", onChange);
-};
-const useReducedMotion = () => useSyncExternalStore(subscribeReduced, () => matchMedia(REDUCED).matches, () => false);
-
-/** Sizes a canvas's backing store to its box at the device's pixel ratio (capped at 2) and clears it. */
-function prepare(canvas: HTMLCanvasElement, w: number, h: number) {
-  const dpr = Math.min(devicePixelRatio || 1, 2);
-  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-  }
-  const ctx = canvas.getContext("2d")!;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-  return ctx;
-}
-
-/** Smoke opacity for a PM2.5 level: invisible in clean air, thickening through "Elevated" and "High". */
-const smokeAlpha = (pm: number) => (pm < 20 ? 0 : Math.min(0.72, 0.06 + ((pm - 20) / 260) * 0.66));
-
-/** The grid's smoke as a tiny image, one pixel per grid point (north row first), for the browser to smooth when scaled up. */
-function smokeImage(field: Field, rgb: string) {
-  const [r, g, b] = rgb.split(" ").map(Number);
-  const img = new ImageData(GRID.nx, GRID.ny);
-  for (let y = 0; y < GRID.ny; y++)
-    for (let x = 0; x < GRID.nx; x++) {
-      const o = ((GRID.ny - 1 - y) * GRID.nx + x) * 4;
-      img.data.set([r, g, b, Math.round(255 * smokeAlpha(field.pm[y * GRID.nx + x]))], o);
-    }
-  const c = document.createElement("canvas");
-  [c.width, c.height] = [GRID.nx, GRID.ny];
-  c.getContext("2d")!.putImageData(img, 0, 0);
-  return c;
-}
-
-const fireRadius = (count: number, k: number) => clamp(1.2 + Math.sqrt(count) * 0.6, 1.2, 5) * clamp(k / 22, 0.7, 2.5);
 
 /**
  * The haze map: coastlines, model smoke, fire hotspots, the 2,500 ft wind as drifting streaks, and
@@ -179,9 +74,9 @@ export function MapView({
   const P = project(view, size.w || 1, size.h || 1);
 
   // Read by the wind animation each frame without restarting it.
-  const live = useRef({ P, field, view });
+  const live = useRef({ P, field });
   useEffect(() => {
-    live.current = { P, field, view };
+    live.current = { P, field };
   });
 
   useEffect(() => {
@@ -193,14 +88,7 @@ export function MapView({
 
   /** Zooms by `factor` (< 1 zooms in), keeping the point under (px, py) in place. */
   const zoomAt = (factor: number, px = size.w / 2, py = size.h / 2) =>
-    setRawView((raw) => {
-      const v = clampView(raw, aspect);
-      const p = project(v, size.w, size.h);
-      const [lon, lat] = [p.lon(px), p.lat(py)];
-      const span = clamp(v.span * factor, MIN_SPAN, MAX_SPAN_X);
-      const k = size.w / span;
-      return clampView({ cx: lon - px / k + span / 2, cy: lat + py / k - size.h / k / 2, span }, aspect);
-    });
+    setRawView((raw) => zoomView(clampView(raw, aspect), factor, px, py, size.w, size.h));
   const panBy = (dx: number, dy: number) =>
     setRawView((raw) => {
       const v = clampView(raw, aspect);
@@ -230,33 +118,9 @@ export function MapView({
   useEffect(() => {
     const canvas = smokeCanvas.current;
     if (!canvas || !size.w) return;
-    const ctx = prepare(canvas, size.w, size.h);
-    if (smokeOn && field) {
-      const img = smokeImage(field, rgbOf(canvas));
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      // Each image pixel is centred on its grid point.
-      const half = GRID.step / 2;
-      ctx.drawImage(img, P.x(GRID.lon0 - half), P.y(EXTENT.n + half), GRID.nx * GRID.step * P.k, GRID.ny * GRID.step * P.k);
-    }
-    if (firesOn) {
-      ctx.fillStyle = `rgb(${rgbOf(fireSwatch.current!)})`;
-      // Older detections first, so fresh ones sit on top.
-      for (const fresh of [false, true]) {
-        ctx.globalAlpha = fresh ? 0.95 : 0.4;
-        ctx.beginPath();
-        for (const [lon, lat, count, , t] of fires) {
-          if (t > freshAfter !== fresh) continue;
-          const [x, y] = [P.x(lon), P.y(lat)];
-          if (x < -8 || y < -8 || x > size.w + 8 || y > size.h + 8) continue;
-          const r = fireRadius(count, P.k);
-          ctx.moveTo(x + r, y);
-          ctx.arc(x, y, r, 0, Math.PI * 2);
-        }
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
+    const ctx = fitCanvas(canvas, size.w, size.h);
+    if (smokeOn && field) drawSmoke(ctx, P, field, rgbOf(canvas));
+    if (firesOn) drawFires(ctx, P, fires, freshAfter, rgbOf(fireSwatch.current!));
     // P is derived from view and size, both listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field, fires, freshAfter, firesOn, smokeOn, size, view.cx, view.cy, view.span, theme]);
@@ -266,112 +130,11 @@ export function MapView({
   useEffect(() => {
     const canvas = windCanvas.current;
     if (!canvas || !size.w) return;
-    const ctx = prepare(canvas, size.w, size.h);
+    const ctx = fitCanvas(canvas, size.w, size.h);
     if (!windOn) return;
     const rgb = rgbOf(canvas);
-    const { w, h } = size;
-
-    if (reduced) {
-      const { P, field } = live.current;
-      if (!field) return;
-      ctx.strokeStyle = `rgb(${rgb} / 0.7)`;
-      ctx.lineWidth = 1.4;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      for (let y = 18; y < h; y += 36)
-        for (let x = 18; x < w; x += 36) {
-          const [u, v] = [valueAt(field.u, P.lon(x), P.lat(y)), valueAt(field.v, P.lon(x), P.lat(y))];
-          if (u == null || v == null) continue;
-          const speed = Math.hypot(u, v);
-          if (speed < 1) continue;
-          const len = clamp(4 + speed * 0.5, 5, 16);
-          const [dx, dy] = [(u / speed) * len, (-v / speed) * len];
-          ctx.moveTo(x - dx / 2, y - dy / 2);
-          ctx.lineTo(x + dx / 2, y + dy / 2);
-          // Arrowhead at the downwind end.
-          const a = Math.atan2(dy, dx);
-          ctx.lineTo(x + dx / 2 - 4 * Math.cos(a - 0.5), y + dy / 2 - 4 * Math.sin(a - 0.5));
-          ctx.moveTo(x + dx / 2, y + dy / 2);
-          ctx.lineTo(x + dx / 2 - 4 * Math.cos(a + 0.5), y + dy / 2 - 4 * Math.sin(a + 0.5));
-        }
-      ctx.stroke();
-      return;
-    }
-
-    const n = Math.min(1800, Math.round((w * h) / 300));
-    const xs = new Float32Array(n);
-    const ys = new Float32Array(n);
-    const ages = new Uint16Array(n);
-    const spawn = (i: number) => {
-      xs[i] = Math.random() * w;
-      ys[i] = Math.random() * h;
-      ages[i] = 40 + Math.floor(Math.random() * 60);
-    };
-    for (let i = 0; i < n; i++) spawn(i);
-    // Speed bands: faster wind draws brighter.
-    const BANDS = [10, 20, 35, Infinity];
-    const ALPHA = [0.3, 0.5, 0.7, 0.92];
-    const PX_PER_KMH = 0.05; // per frame: 20 km/h drifts ~1 px a frame
-    let frame = 0;
-    let visible = true;
-    let lastView = live.current.view;
-
-    const tick = () => {
-      const { P, field, view } = live.current;
-      // Panned or zoomed: the trails no longer line up, so start afresh.
-      if (view.cx !== lastView.cx || view.cy !== lastView.cy || view.span !== lastView.span) {
-        ctx.clearRect(0, 0, w, h);
-        for (let i = 0; i < n; i++) spawn(i);
-        lastView = view;
-      }
-      // Fade the trails: keep 92% of what's there each frame.
-      ctx.globalCompositeOperation = "destination-in";
-      ctx.fillStyle = "rgb(0 0 0 / 0.92)";
-      ctx.fillRect(0, 0, w, h);
-      ctx.globalCompositeOperation = "source-over";
-      if (field) {
-        const paths = BANDS.map(() => new Path2D());
-        for (let i = 0; i < n; i++) {
-          const [lon, lat] = [P.lon(xs[i]), P.lat(ys[i])];
-          const u = valueAt(field.u, lon, lat);
-          const v = valueAt(field.v, lon, lat);
-          if (u == null || v == null || --ages[i] === 0) {
-            spawn(i);
-            continue;
-          }
-          const [x2, y2] = [xs[i] + u * PX_PER_KMH, ys[i] - v * PX_PER_KMH];
-          const speed = Math.hypot(u, v);
-          const path = paths[BANDS.findIndex((b) => speed < b)];
-          path.moveTo(xs[i], ys[i]);
-          path.lineTo(x2, y2);
-          if (x2 < 0 || y2 < 0 || x2 > w || y2 > h) spawn(i);
-          else [xs[i], ys[i]] = [x2, y2];
-        }
-        ctx.lineWidth = 1.2;
-        ctx.lineCap = "round";
-        paths.forEach((p, b) => {
-          ctx.strokeStyle = `rgb(${rgb} / ${ALPHA[b]})`;
-          ctx.stroke(p);
-        });
-      }
-      frame = visible && !document.hidden ? requestAnimationFrame(tick) : 0;
-    };
-    const wake = () => {
-      if (!frame && visible && !document.hidden) frame = requestAnimationFrame(tick);
-    };
-    // Paused while off-screen (another tab of the dashboard) or in a background browser tab.
-    const io = new IntersectionObserver(([e]) => {
-      visible = e.isIntersecting;
-      wake();
-    });
-    io.observe(canvas);
-    document.addEventListener("visibilitychange", wake);
-    wake();
-    return () => {
-      cancelAnimationFrame(frame);
-      io.disconnect();
-      document.removeEventListener("visibilitychange", wake);
-    };
+    if (!reduced) return animateWind(canvas, ctx, rgb, () => live.current);
+    if (live.current.field) drawWindArrows(ctx, live.current.P, live.current.field, rgb);
     // The animation reads the time and view live; only the still arrows redraw when they change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windOn, size, theme, reduced, reduced ? field : null, reduced ? `${view.cx},${view.cy},${view.span}` : null]);

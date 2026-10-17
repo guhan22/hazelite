@@ -3,7 +3,7 @@
 import { ToggleGroup } from "radix-ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bandFor, PM25_BANDS } from "@/lib/bands";
-import { FIRE_AREAS, inside, type FireMap } from "@/lib/fires";
+import type { FireMap } from "@/lib/fires";
 import {
   bearing,
   compassWord,
@@ -17,9 +17,11 @@ import {
   timeSpan,
   tracePath,
   valueAt,
+  type Field,
   type LonLat,
   type PathPoint,
 } from "@/lib/flow";
+import { approachText, hoursLabel, latLon, listJoin, placesAlong, province, windText } from "@/lib/flow-text";
 import { sgtFormat } from "@/lib/format";
 import type { RegionalWeather } from "@/lib/regional";
 import { HOUR } from "@/lib/time";
@@ -27,6 +29,7 @@ import { Card } from "./card";
 import { MapView, type Layer } from "./map-view";
 import { StatusLabel } from "./status";
 import { pill } from "./styles";
+import { PlayButton } from "./time-machine";
 
 interface MapData {
   weather: RegionalWeather | null;
@@ -49,9 +52,6 @@ const RELOAD_MS = 30 * 60_000;
 
 const fmtTime = sgtFormat({ weekday: "short", hour: "numeric" });
 const fmtDetected = sgtFormat({ weekday: "short", hour: "numeric", minute: "2-digit" });
-const hoursLabel = (h: number) => `${h} ${h === 1 ? "hr" : "hrs"}`;
-const latLon = ({ lon, lat }: LonLat) => `${Math.abs(lat).toFixed(1)}°${lat < 0 ? "S" : "N"}, ${lon.toFixed(1)}°E`;
-
 /** Loads the map's layers the first time it scrolls into view (its tab is opened), then every half hour. */
 function useMapData() {
   const ref = useRef<HTMLDivElement>(null);
@@ -84,44 +84,6 @@ function useMapData() {
   }, []);
   return { ref, data, failed };
 }
-
-/** The closest an air path comes to Singapore, and how many hours along it. */
-function approach(path: PathPoint[]) {
-  let best = { km: Infinity, hours: 0 };
-  for (const p of path) {
-    const km = kmBetween(p, SINGAPORE);
-    if (km < best.km) best = { km, hours: Math.round(Math.abs(p.t - path[0].t) / HOUR) };
-  }
-  return best;
-}
-
-/** "reaches Singapore in about 20 hrs", "comes within 340 km of Singapore, in about 30 hrs", and so on. */
-function approachText(path: PathPoint[]) {
-  if (path.length < 2) return null;
-  const { km, hours } = approach(path);
-  if (km < 80) return hours === 0 ? "is over Singapore now" : `reaches Singapore in about ${hoursLabel(hours)}`;
-  const total = Math.round((path.at(-1)!.t - path[0].t) / HOUR);
-  if (hours === 0) return `heads away from Singapore over the next ${hoursLabel(total)}`;
-  // Closest at the very end: the forecast runs out while it's still on its way.
-  if (hours === total) return `is still drifting toward Singapore after ${hoursLabel(hours)}, about ${Math.round(km / 10) * 10} km away`;
-  return `comes within ${Math.round(km / 10) * 10} km of Singapore, in about ${hoursLabel(hours)}`;
-}
-
-/** Island or province names along a path, in order, without repeats. */
-function placesAlong(path: LonLat[]) {
-  const names: string[] = [];
-  for (const p of path) {
-    const island = FIRE_AREAS.find((a) => inside([p.lon, p.lat], a.outline))?.name;
-    const place = province(placeNear(p));
-    for (const n of [island, place]) if (n && n !== "Singapore" && !names.includes(n)) names.push(n);
-  }
-  return names;
-}
-
-/** "Ketapang, West Kalimantan" → "West Kalimantan". */
-const province = (place: string | null) => place?.split(", ").at(-1) ?? null;
-
-const listJoin = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 /**
  * The Map tab: where the region's fires are, where their smoke is, and which way the wind carries it,
@@ -273,16 +235,7 @@ function TimeScrubber({
   const nowAt = ((now - first) / (last - first)) * 100;
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2">
-      <button
-        type="button"
-        onClick={onPlay}
-        aria-label={playing ? "Pause" : "Play the wind and smoke from two days ago to two days ahead"}
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-ink text-page transition-transform active:scale-90"
-      >
-        <svg width="0.875rem" height="0.875rem" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          {playing ? <path d="M6 4h4v16H6zM14 4h4v16h-4z" /> : <path d="M7 4.5v15l13-7.5z" />}
-        </svg>
-      </button>
+      <PlayButton playing={playing} onClick={onPlay} label="Play the wind and smoke from two days ago to two days ahead" />
       <div className="relative min-w-0 flex-1">
         {/* Where "now" sits on the track. */}
         <span aria-hidden className="pointer-events-none absolute -top-1.5 h-1.5 w-0.5 -translate-x-1/2 rounded bg-[var(--status-good)]" style={{ left: `${nowAt}%` }} />
@@ -340,15 +293,6 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-function windText(field: ReturnType<typeof fieldAt>, p: LonLat) {
-  const [u, v] = [valueAt(field.u, p.lon, p.lat) ?? 0, valueAt(field.v, p.lon, p.lat) ?? 0];
-  const speed = Math.round(Math.hypot(u, v));
-  if (speed < 2) return "Calm";
-  // The wind blows from the opposite of where it's heading.
-  const from = (Math.atan2(-u, -v) * 180) / Math.PI + 360;
-  return `From the ${compassWord(from % 360)}, ${speed} km/h`;
-}
-
 function Smoke({ pm }: { pm: number }) {
   const band = bandFor(PM25_BANDS, Math.round(pm));
   return (
@@ -369,7 +313,7 @@ function SingaporeAir({
 }: {
   time: number;
   now: number;
-  field: ReturnType<typeof fieldAt>;
+  field: Field;
   backPath: PathPoint[];
   cells: FireMap["cells"];
   recentFires: number | null;
@@ -418,7 +362,7 @@ function ProbeCard({
   onClose,
 }: {
   probe: LonLat;
-  field: ReturnType<typeof fieldAt>;
+  field: Field;
   path: PathPoint[];
   cells: FireMap["cells"];
   hasFires: boolean;
