@@ -31,6 +31,15 @@
 
   /* Smoky haze drawn over the hero as PM2.5 rises: warm grey on light, pale smoke on dark. */
   --haze: light-dark(rgb(120 105 90), rgb(205 195 180));
+
+  /* Haze map: sea and land, wind streaks, fire hotspots, and air paths (Singapore's, and a tapped spot's). */
+  --sea: light-dark(#eef1f2, #121516);
+  --land: light-dark(#e3e1d8, #22221f);
+  --coast: light-dark(#b9b7ab, #44443f);
+  --wind: light-dark(rgb(28 70 128), rgb(205 225 250));
+  --fire-dot: light-dark(#e2471b, #ff6a3d);
+  --path: var(--series-1);
+  --path-probe: light-dark(#a3399b, #d77bd0);
 }
 
 :root[data-theme="light"] {
@@ -96,6 +105,16 @@ body {
   0% { transform: translateX(-5rem); opacity: 0; }
   25%, 75% { opacity: 0.3; }
   100% { transform: translateX(13rem); opacity: 0; }
+}
+
+/* Haze map: a ring that swells and fades (Singapore, fire epicentres), and dashes that flow along air paths. */
+@keyframes map-pulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes path-flow {
+  to { stroke-dashoffset: -24; }
 }
 
 @keyframes dot-bounce {

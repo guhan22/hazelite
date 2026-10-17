@@ -1,9 +1,9 @@
 import { pool } from "./db";
-import { fetchHotspots } from "./fires";
+import { fetchFireMap, fetchHotspots } from "./fires";
 import { fetchPm25Forecast } from "./forecast";
 import { errorMessage, logError } from "./http";
 import { fetchNeaForecast } from "./nea";
-import { fetchNews } from "./news";
+import { fetchRegionalWeather } from "./regional";
 
 interface Feed<T> {
   /** Minimum minutes between fetches. */
@@ -15,16 +15,19 @@ interface Feed<T> {
 }
 
 const feed = <T>(f: Feed<T>) => f;
+const hasFirmsKey = () => !!process.env.FIRMS_MAP_KEY;
 
 /** Every supplementary source. Adding one is an entry here; no schema change needed. */
 const FEEDS = {
   neaForecast: feed({ every: 30, fetch: fetchNeaForecast }),
   pm25Forecast: feed({ every: 180, fetch: fetchPm25Forecast }),
-  hotspots: feed({ every: 180, enabled: () => !!process.env.FIRMS_MAP_KEY, fetch: fetchHotspots }),
-  news: feed({ every: 60, fetch: fetchNews }),
+  hotspots: feed({ every: 180, enabled: hasFirmsKey, fetch: fetchHotspots }),
+  // The haze map's layers: regional wind and smoke, and individual fire detections.
+  regional: feed({ every: 180, fetch: fetchRegionalWeather }),
+  fireMap: feed({ every: 180, enabled: hasFirmsKey, fetch: fetchFireMap }),
 };
 
-type FeedName = keyof typeof FEEDS;
+export type FeedName = keyof typeof FEEDS;
 export type Feeds = { [K in FeedName]: Awaited<ReturnType<(typeof FEEDS)[K]["fetch"]>> | null };
 const NAMES = Object.keys(FEEDS) as FeedName[];
 
@@ -62,10 +65,13 @@ export async function refreshFeeds(): Promise<void> {
   results.forEach((r, i) => r.status === "rejected" && logError(`${NAMES[i]} feed`, r.reason));
 }
 
-/** The latest stored snapshot of each feed (null if never fetched). */
-export async function getFeeds(): Promise<Feeds> {
-  const feeds = Object.fromEntries(NAMES.map((n) => [n, null])) as Feeds;
-  const { rows } = await pool.query<{ name: string; data: unknown }>("SELECT name, data FROM feeds WHERE data IS NOT NULL");
-  for (const r of rows) if (Object.hasOwn(FEEDS, r.name)) (feeds as Record<string, unknown>)[r.name] = r.data;
+/** The latest stored snapshot of each named feed (null if never fetched). */
+export async function getFeeds<K extends FeedName>(names: readonly K[]): Promise<Pick<Feeds, K>> {
+  const feeds = Object.fromEntries(names.map((n) => [n, null])) as Pick<Feeds, K>;
+  const { rows } = await pool.query<{ name: K; data: Feeds[K] }>(
+    "SELECT name, data FROM feeds WHERE data IS NOT NULL AND name = ANY($1)",
+    [names],
+  );
+  for (const r of rows) feeds[r.name] = r.data;
   return feeds;
 }

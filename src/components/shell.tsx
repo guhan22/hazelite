@@ -42,7 +42,7 @@ export function Shell({
         <a className="underline" href="https://data.gov.sg" target="_blank" rel="noopener noreferrer">
           data.gov.sg
         </a>
-        . Bands and advisories follow NEA&apos;s published PSI and PM2.5 descriptors. PM2.5 forecast:{" "}
+        . Bands and advisories follow NEA&apos;s published PSI and PM2.5 descriptors. PM2.5 forecast, regional wind and smoke:{" "}
         <a className="underline" href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">
           Open-Meteo
         </a>{" "}
@@ -50,7 +50,7 @@ export function Shell({
         <a className="underline" href="https://firms.modaps.eosdis.nasa.gov" target="_blank" rel="noopener noreferrer">
           NASA FIRMS
         </a>
-        . Headlines: Google News.
+        . Coastlines: Natural Earth.
       </footer>
     </main>
   );

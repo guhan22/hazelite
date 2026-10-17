@@ -1,6 +1,5 @@
 import { getFeeds, type Feeds } from "./feeds";
 import { logError } from "./http";
-import { aboutSingaporeHaze } from "./news";
 import { range } from "./summary";
 import { HOUR } from "./time";
 import {
@@ -13,7 +12,9 @@ import {
 } from "./queries";
 
 const REPLAY_HOURS = 72;
-const NO_FEEDS: Feeds = { neaForecast: null, pm25Forecast: null, hotspots: null, news: null };
+// The haze map loads its own (larger) feeds from /api/haze-map, only when its tab is opened.
+const FEED_NAMES = ["neaForecast", "pm25Forecast", "hotspots"] as const;
+const NO_FEEDS: Pick<Feeds, (typeof FEED_NAMES)[number]> = { neaForecast: null, pm25Forecast: null, hotspots: null };
 const NO_WIND = { islandwide: null, byRegion: {} };
 
 /**
@@ -30,7 +31,7 @@ export async function getDashboard(rangeKey: RangeKey) {
     lastIngestFailed(),
     getLatestWind().catch((err) => (logError("wind query", err), NO_WIND)),
     sameAsReplay ? null : getSeries(REPLAY_HOURS, "hour"),
-    getFeeds().catch((err) => (logError("feeds query", err), NO_FEEDS)),
+    getFeeds(FEED_NAMES).catch((err) => (logError("feeds query", err), NO_FEEDS)),
   ]);
 
   // The 72-hour replay already holds every region's 24-hr PSI by the hour: read "a day ago" from it
@@ -39,8 +40,5 @@ export async function getDashboard(rangeKey: RangeKey) {
   const observedAt = latest[0]?.observedAt;
   const dayAgo = observedAt && recent.find((p) => p.t === observedAt.getTime() - 24 * HOUR);
   const psiDayAgo = dayAgo ? (range(Object.values(dayAgo.values).map((v) => v?.psi ?? null))?.max ?? null) : null;
-
-  // Headlines stored before the Singapore-only rule are filtered on the way out too.
-  const news = feeds.news?.filter(aboutSingaporeHaze) ?? null;
-  return { latest, series, refreshFailed, wind, replay: recent, feeds: { ...feeds, news }, psiDayAgo };
+  return { latest, series, refreshFailed, wind, replay: recent, feeds, psiDayAgo };
 }

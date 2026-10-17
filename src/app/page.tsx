@@ -2,8 +2,8 @@ import { after } from "next/server";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Card } from "@/components/card";
 import { FiresCard } from "@/components/fires-card";
+import { HazeMap } from "@/components/haze-map";
 import { MetricProvider } from "@/components/metric-toggle";
-import { NewsCard } from "@/components/news-card";
 import { OutdoorPlanner } from "@/components/outdoor-planner";
 import { OutlookCard } from "@/components/outlook-card";
 import { PollutantTable } from "@/components/pollutant-table";
@@ -26,7 +26,7 @@ import { HOUR, sgtDayStart } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-const TAB_IDS = ["now", "forecast", "trends", "news"];
+const TAB_IDS = ["now", "forecast", "trends", "map"];
 /** Allow-lists the `tab` query parameter. */
 const parseTab = (value: unknown) => (typeof value === "string" && TAB_IDS.includes(value) ? value : TAB_IDS[0]);
 
@@ -70,7 +70,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const byRegion = new Map(latest.map((r) => [r.region, r]));
   const inOrder = (order: readonly Region[]) => order.flatMap((r) => byRegion.get(r) ?? []);
 
-  const { neaForecast, pm25Forecast, hotspots, news } = feeds;
+  const { neaForecast, pm25Forecast, hotspots } = feeds;
   const hazeSoon = [...new Set(neaForecast?.twoHour?.areas.filter((a) => isHazy(a.forecast)).map((a) => a.region))];
   const tomorrow = sgtDayStart(observedAt.getTime(), 1);
   const tomorrowPm25 = forecastMax(pm25Forecast, tomorrow + 7 * HOUR, tomorrow + 19 * HOUR);
@@ -157,10 +157,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       ),
     },
     {
-      id: "news",
-      label: "News",
-      badge: news?.length ? <span key="badge" className="tabular rounded-full bg-grid px-1.5 text-[0.6875rem] text-ink-2">{news.length}</span> : null,
-      content: <NewsCard key="news" items={news} />,
+      id: "map",
+      label: "Map",
+      content: <HazeMap key="map" />,
     },
   ];
 

@@ -1,6 +1,6 @@
 # Hazelite
 
-A Singapore haze monitor. It pulls hourly 24-hr PSI, 1-hr PM2.5, and pollutant readings for NEA's five regions from [data.gov.sg](https://data.gov.sg), stores them in Postgres, and shows them on a Next.js dashboard. Alongside them it shows NEA's weather forecasts, a model PM2.5 forecast ([Open-Meteo](https://open-meteo.com), CAMS), satellite fire hotspots in Sumatra and Borneo ([NASA FIRMS](https://firms.modaps.eosdis.nasa.gov)), and recent haze headlines (Google News).
+A Singapore haze monitor. It pulls hourly 24-hr PSI, 1-hr PM2.5, and pollutant readings for NEA's five regions from [data.gov.sg](https://data.gov.sg), stores them in Postgres, and shows them on a Next.js dashboard. Alongside them it shows NEA's weather forecasts, a model PM2.5 forecast ([Open-Meteo](https://open-meteo.com), CAMS), satellite fire hotspots in Sumatra and Borneo ([NASA FIRMS](https://firms.modaps.eosdis.nasa.gov)), and a regional haze map of fires, smoke and wind across Southeast Asia.
 
 ## Quick start
 
@@ -37,12 +37,12 @@ A serverless host has no always-on process, so instead of the background poller 
 - **Page visits** refresh the data after the response is sent (`after()`), at most once every 30 minutes (`src/lib/refresh.ts`).
 - **An hourly GitHub Actions workflow** (`.github/workflows/refresh.yml`) POSTs to `/api/ingest` with `INGEST_TOKEN`, so data stays current without visitors.
 - **A daily Vercel Cron** (`vercel.json`) calls `/api/ingest` as a backstop. Hobby cron jobs can run at most once a day.
-- **Supplementary feeds** (forecasts, hotspots, news) each refresh on their own schedule, from 30 minutes to 3 hours (`src/lib/feeds.ts`). A database claim makes sure only one instance fetches each feed.
+- **Supplementary feeds** (forecasts, hotspots, the haze map's wind, smoke and fires) each refresh on their own schedule, from 30 minutes to 3 hours (`src/lib/feeds.ts`). A database claim makes sure only one instance fetches each feed.
 - **Migrations** run during the build (`npm run vercel-build`). Preview builds without `DATABASE_URL` skip them.
 
 Setup:
 1. **Neon.** Create a project in *AWS US West 2 (Oregon)* and set compute to 0.25 CU. Copy the **direct** connection string (pooling off: the migration lock needs a session) and use `sslmode=verify-full`.
-2. **Vercel.** Import the GitHub repo. Set `DATABASE_URL`, `CRON_SECRET` and `INGEST_TOKEN` (for example `openssl rand -hex 32`) for Production. `FIRMS_MAP_KEY` turns on the fire-hotspot card, `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (`npx web-push generate-vapid-keys`) turn on alerts, and `DATA_GOV_SG_API_KEY` is optional.
+2. **Vercel.** Import the GitHub repo. Set `DATABASE_URL`, `CRON_SECRET` and `INGEST_TOKEN` (for example `openssl rand -hex 32`) for Production. `FIRMS_MAP_KEY` turns on the fire-hotspot card and the map's fire layer, `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (`npx web-push generate-vapid-keys`) turn on alerts, and `DATA_GOV_SG_API_KEY` is optional.
 3. **GitHub.** Add the same `INGEST_TOKEN` as an Actions secret for the hourly refresh. GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab.
 4. **Push to `main`.** Vercel builds, migrates and deploys. Pushes to other branches become previews.
 
@@ -69,8 +69,10 @@ src/lib/schema.ts       regions and the table of measures: API key ↔ DB column
 src/lib/nea.ts          data.gov.sg client (PSI, PM2.5, wind, weather forecasts)
 src/lib/feeds.ts        supplementary sources, each stored as a snapshot and refreshed on its own schedule
 src/lib/forecast.ts     Open-Meteo PM2.5 forecast
-src/lib/fires.ts        NASA FIRMS hotspots, counted per fire region
-src/lib/news.ts         Google News RSS headlines
+src/lib/fires.ts        NASA FIRMS hotspots, counted per fire region and mapped as recent detections
+src/lib/regional.ts     Open-Meteo wind (925 hPa) and CAMS PM2.5 on a 2° grid across Southeast Asia
+src/lib/flow.ts         samples that grid, traces air paths, finds fire epicentres
+src/lib/sea-map.ts      Natural Earth coastlines and borders (generated)
 src/lib/dashboard.ts    loads everything the dashboard shows
 src/lib/push.ts         Web Push: subscription validation, storage and sending
 src/lib/alerts.ts       when to alert, clear or stay quiet, per subscriber
@@ -93,9 +95,9 @@ src/assets/mascots/     mascot artwork
 - **Can I go out?** NEA's official 1-hr PM2.5 guide for the next hour, for the general public or vulnerable people. It uses your area, which you can pick, or detect with "Use my location" (the pin beside the metric toggle on the region map). Your choices are saved in the browser.
 - **Outlook.** NEA's forecast for the next 2 hours (flagging areas with haze, which also shows on the region tiles), the next 24 hours and the next 4 days. Each is paired with the model's PM2.5 forecast. "Can I go out?" also gives tomorrow's daytime guidance from it.
 - **Where the smoke comes from.** Daily fire hotspots in Sumatra and Borneo from NASA's VIIRS satellite (NOAA-20), compared with the previous days, and whether the current wind blows from either region.
-- **In the news.** The week's headlines about Singapore's haze situation: they must be about air quality and name Singapore (or its PSI), or come from NEA.
+- **Haze map.** Southeast Asia with Singapore at the centre, after the hotspot map on haze.gov.sg: fire hotspots from the last 48 hours (bright if under 12 hours old), model smoke (CAMS PM2.5) and the 2,500 ft wind as drifting streaks, over coastlines and 250/500/1,000 km rings. The busiest fire clusters are numbered as epicentres, each with where its smoke heads. A dashed path traces where the air reaching Singapore came from over the past two days, and tapping anywhere traces where that spot's air goes next. Play or scrub from two days ago to two days ahead. Drag, pinch, scroll or use the buttons to pan and zoom; arrow keys and +/− work too. Its layers load from `/api/haze-map` only when the tab is opened. Paths follow the 2,500 ft wind alone, so they're a rough guide.
 - **Haze alerts.** The bell in the header subscribes this browser to push notifications for an area: one when its 1-hr AQI reaches the level you pick (Unhealthy 151+, Very unhealthy 201+ or Hazardous 301+), with US EPA advice, again if it gets worse, and one when it clears. Alerts are checked after every refresh (hourly), with a 2-hour cooldown so a reading hovering on a boundary doesn't spam. Subscribers can also opt in to a notification when a new version goes live: `.github/workflows/announce.yml` runs when Vercel reports a successful production deployment and calls `POST /api/release` (bearer `INGEST_TOKEN`), which announces each version once. Notices are meant to be fun: a playful title, and the commit's `Release-Note:` trailer as the message (or a cheerful default). Write that trailer for people, not developers, for example `Release-Note: The dragon now does a happy hop while your air check loads! 🐉`. On iPhone and iPad, alerts work only in the installed app (iOS 16.4+). The server stores only the push address and the three choices (`src/lib/push.ts`, `src/lib/alerts.ts`).
-- **Tabs.** Now, Forecast, Trends and News in a centred bar that sticks to the top while you scroll, so everything is a tap away instead of a long scroll. On touch screens, swipe left or right: the panels follow your finger and snap to the nearest tab (Embla Carousel), except when the swipe starts on the chart, a slider or a table that scrolls sideways. The active tab is kept in `?tab=`.
+- **Tabs.** Now, Forecast, Trends and Map in a centred bar that sticks to the top while you scroll, so everything is a tap away instead of a long scroll. On touch screens, swipe left or right: the panels follow your finger and snap to the nearest tab (Embla Carousel), except when the swipe starts on the chart, the map, a slider or a table that scrolls sideways. The active tab is kept in `?tab=`.
 - **Trend chart** for 24 hours, 3, 7 or 30 days (hourly), and 3 months (daily maximum). It follows the **1-hr AQI / 1-hr PM2.5 / 24-hr PSI** toggle (1-hr AQI by default), which is shared with the region explorer. 1-hr AQI is the US EPA index (2024 breakpoints) computed from NEA's 1-hr PM2.5, since NEA publishes no AQI. The hourly AQI and PM2.5 charts continue with a dashed model forecast. Lines break where data is missing.
 - **Installable app (PWA).** It can be added to the Home Screen with its own icon and opens full-screen. On iPhone, use Safari's Share → **Add to Home Screen**; the header's **Install** button shows these steps. On Android and desktop Chrome/Edge, the **Install** button opens the browser's prompt. When installed, it opens offline with the last reading it saved and says it's offline. The service worker is `public/sw.js`, the manifest is `src/app/manifest.ts`, and the icons are in `public/icons/` and `src/app/`.
 - **Light/dark theme toggle.** It follows the OS setting until you choose, and remembers your choice.

@@ -47,7 +47,7 @@ const DAYS_PER_FETCH = 5; // the most FIRMS returns per request
 const DAYS_KEPT = 14;
 
 /** Ray-casting point-in-polygon test. */
-function inside([x, y]: Point, outline: readonly Point[]) {
+export function inside([x, y]: Point, outline: readonly Point[]) {
   let hit = false;
   for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
     const [xi, yi] = outline[i];
@@ -60,20 +60,45 @@ function inside([x, y]: Point, outline: readonly Point[]) {
 const zero = () => Object.fromEntries(FIRE_AREAS.map((a) => [a.id, 0])) as Record<FireAreaId, number>;
 const utcDate = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString().slice(0, 10);
 
-/** Counts nominal- and high-confidence detections per area per day in a FIRMS VIIRS CSV. */
-function countHotspots(csv: string, days: string[]): Hotspots["days"] {
+interface Detection {
+  lon: number;
+  lat: number;
+  /** Satellite (UTC) date, YYYY-MM-DD. */
+  day: string;
+  /** Epoch ms of the overpass. */
+  t: number;
+  /** Fire radiative power, MW: how intensely it burns. */
+  frp: number;
+}
+
+/** The nominal- and high-confidence detections in a FIRMS VIIRS CSV. */
+function parseDetections(csv: string): Detection[] {
   const [header = "", ...lines] = csv.trim().split("\n");
   const cols = header.split(",");
-  const [lat, lon, date, confidence] = ["latitude", "longitude", "acq_date", "confidence"].map((c) => cols.indexOf(c));
+  const [lat, lon, date, time, confidence, frp] = ["latitude", "longitude", "acq_date", "acq_time", "confidence", "frp"].map((c) =>
+    cols.indexOf(c),
+  );
   // An invalid key or a limit error comes back as plain text rather than CSV.
-  if ([lat, lon, date, confidence].includes(-1)) throw new Error("FIRMS returned an unexpected response");
-
-  const byDay = new Map(days.map((d) => [d, zero()]));
-  for (const line of lines) {
+  if ([lat, lon, date, time, confidence, frp].includes(-1)) throw new Error("FIRMS returned an unexpected response");
+  return lines.flatMap((line) => {
     const f = line.split(",");
-    if (f[confidence] === "l") continue; // low confidence: often sun glint or hot surfaces, not fires
-    const area = FIRE_AREAS.find((a) => inside([Number(f[lon]), Number(f[lat])], a.outline));
-    const counts = byDay.get(f[date]);
+    if (f[confidence] === "l") return []; // low confidence: often sun glint or hot surfaces, not fires
+    const hhmm = f[time].padStart(4, "0");
+    const t = Date.parse(`${f[date]}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00Z`);
+    const d = { lon: Number(f[lon]), lat: Number(f[lat]), day: f[date], t, frp: Number(f[frp]) || 0 };
+    return Number.isFinite(d.lon) && Number.isFinite(d.lat) && Number.isFinite(t) ? [d] : [];
+  });
+}
+
+const firmsUrl = (bbox: string, days: number) =>
+  `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(process.env.FIRMS_MAP_KEY ?? "")}/${SOURCE}/${bbox}/${days}`;
+
+/** Counts detections per area per day. */
+function countHotspots(detections: Detection[], days: string[]): Hotspots["days"] {
+  const byDay = new Map(days.map((d) => [d, zero()]));
+  for (const d of detections) {
+    const area = FIRE_AREAS.find((a) => inside([d.lon, d.lat], a.outline));
+    const counts = byDay.get(d.day);
     if (area && counts) counts[area.id]++;
   }
   return [...byDay].map(([day, counts]) => ({ day, counts }));
@@ -81,12 +106,41 @@ function countHotspots(csv: string, days: string[]): Hotspots["days"] {
 
 /** Fetches the last five days of hotspots and merges them into the stored history. */
 export async function fetchHotspots(previous: Hotspots | null): Promise<Hotspots> {
-  const key = encodeURIComponent(process.env.FIRMS_MAP_KEY ?? "");
-  const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${key}/${SOURCE}/${BBOX}/${DAYS_PER_FETCH}`;
   const days = Array.from({ length: DAYS_PER_FETCH }, (_, i) => utcDate(DAYS_PER_FETCH - 1 - i));
-  const fresh = countHotspots(await (await fetchOk(url)).text(), days);
+  const csv = await (await fetchOk(firmsUrl(BBOX, DAYS_PER_FETCH))).text();
+  const fresh = countHotspots(parseDetections(csv), days);
   const merged = new Map([...(previous?.days ?? []), ...fresh].map((d) => [d.day, d]));
   return { days: [...merged.values()].sort((a, b) => a.day.localeCompare(b.day)).slice(-DAYS_KEPT) };
+}
+
+/**
+ * The last two days of detections across the haze map, merged into 0.1° cells (about 11 km) so a busy
+ * day stays small: [lon, lat, detections, strongest FRP (MW), latest detection (epoch ms)].
+ */
+export interface FireMap {
+  cells: [lon: number, lat: number, count: number, frp: number, t: number][];
+}
+
+const MAP_BBOX = "86,-12,122,16"; // the regional grid's extent (src/lib/regional.ts)
+const MAX_CELLS = 6000;
+
+export async function fetchFireMap(): Promise<FireMap> {
+  // Three satellite days so the last 48 hours are covered whatever the time of day.
+  const detections = parseDetections(await (await fetchOk(firmsUrl(MAP_BBOX, 3))).text());
+  const since = Date.now() - 2 * DAY;
+  const cells = new Map<string, FireMap["cells"][number]>();
+  for (const d of detections) {
+    if (d.t < since) continue;
+    const [lon, lat] = [Math.round(d.lon * 10) / 10, Math.round(d.lat * 10) / 10];
+    const key = `${lon},${lat}`;
+    const cell = cells.get(key);
+    if (cell) {
+      cell[2]++;
+      cell[3] = Math.max(cell[3], Math.round(d.frp));
+      cell[4] = Math.max(cell[4], d.t);
+    } else cells.set(key, [lon, lat, 1, Math.round(d.frp), d.t]);
+  }
+  return { cells: [...cells.values()].sort((a, b) => b[2] - a[2]).slice(0, MAX_CELLS) };
 }
 
 /** The fire area whose smoke the given wind (blowing from `fromDeg`) carries toward Singapore. */

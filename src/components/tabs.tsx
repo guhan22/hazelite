@@ -72,6 +72,23 @@ export function Tabs({ tabs, initial }: { tabs: Tab[]; initial: string }) {
     };
   }, [embla, tabs]);
 
+  // Embla re-measures only when a panel's width changes. A panel that grows later (the map, once its
+  // layers load) needs a re-measure too, or AutoHeight would clip it at its old height.
+  useEffect(() => {
+    if (!embla) return;
+    const slides = embla.slideNodes();
+    let heights = slides.map((s) => s.offsetHeight);
+    const ro = new ResizeObserver(() => {
+      const next = slides.map((s) => s.offsetHeight);
+      if (next.some((h, i) => Math.abs(h - heights[i]) >= 1)) {
+        heights = next;
+        embla.reInit();
+      }
+    });
+    slides.forEach((s) => ro.observe(s));
+    return () => ro.disconnect();
+  }, [embla]);
+
   const onValueChange = (id: string) => {
     const i = tabs.findIndex((t) => t.id === id);
     setActive(id);
