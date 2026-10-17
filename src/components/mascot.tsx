@@ -10,7 +10,6 @@ import type { Severity } from "@/lib/bands";
 const INK = "#0a1437";
 const EYE = { cx: 266, cy: 184, rx: 41, ry: 46, pupil: 22 };
 const SMILE_PATCH = { x: 176, y: 229, width: 62, height: 34 };
-const MASK_LOOP = "M244 202Q300 206 330 222M240 288Q296 270 330 222";
 const MASK_PLEATS = "M64 246Q148 230 250 240M62 268Q148 254 252 263M66 289Q148 280 250 285";
 
 interface Mood {
@@ -86,14 +85,11 @@ function Face({ mood, blink, uid }: { mood: Mood | null; blink: boolean; uid: st
         <path d={`M${cx + 32} ${cy - 58}Q${cx} ${cy - 62 - mood.brow / 2} ${cx - 32} ${cy - 60 - mood.brow}`} strokeWidth={9} {...line} />
       )}
 
-      {/* The mask covers the whole smile, so only the other mouths need it tiled over. */}
-      {mood && mood.mouth !== "mask" && <rect {...SMILE_PATCH} rx={8} fill={tiles} />}
+      {mood && <rect {...SMILE_PATCH} rx={8} fill={tiles} />}
       {mood?.mouth === "mask" && (
-        // A pleated surgical mask hugging the snout, its ear loop running back under the eye.
+        // A pleated surgical mask over the snout (no ear loops: the dragon has no ears).
         <>
-          <path d={MASK_LOOP} strokeWidth={4} {...line} />
-          <path d={MASK_LOOP} stroke="#fff" strokeWidth={1.5} strokeLinecap="round" fill="none" />
-          <g transform="rotate(-6 128 258)">
+          <g transform="rotate(-6 128 258) translate(150 262) scale(0.84) translate(-150 -262)">
             <path d="M58 222Q140 202 246 214Q258 258 246 302Q146 324 64 300Q40 262 58 222Z" fill="#d6eefa" stroke={INK} strokeWidth={6} strokeLinejoin="round" />
             <path d={MASK_PLEATS} stroke="#9fcde6" strokeWidth={6} strokeLinecap="round" fill="none" />
             <path d={MASK_PLEATS} transform="translate(0 -4)" stroke="#f2fafe" strokeWidth={2} strokeLinecap="round" fill="none" />
