@@ -89,7 +89,7 @@ function Face({ mood, blink, uid }: { mood: Mood | null; blink: boolean; uid: st
       {mood?.mouth === "mask" && (
         // A pleated surgical mask over the snout (no ear loops: the dragon has no ears).
         <>
-          <g transform="rotate(-6 128 258) translate(150 262) scale(0.84) translate(-150 -262)">
+          <g transform="rotate(4 150 262) translate(150 262) scale(0.84) translate(-150 -262)">
             <path d="M58 222Q140 202 246 214Q258 258 246 302Q146 324 64 300Q40 262 58 222Z" fill="#d6eefa" stroke={INK} strokeWidth={6} strokeLinejoin="round" />
             <path d={MASK_PLEATS} stroke="#9fcde6" strokeWidth={6} strokeLinecap="round" fill="none" />
             <path d={MASK_PLEATS} transform="translate(0 -4)" stroke="#f2fafe" strokeWidth={2} strokeLinecap="round" fill="none" />
